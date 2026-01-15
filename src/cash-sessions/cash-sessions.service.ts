@@ -1,0 +1,269 @@
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository, IsNull, Not } from 'typeorm';
+import { CashSession, CashSessionStatus } from './entities/cash-session.entity';
+import { CashMovement, CashMovementType } from './entities/cash-movement.entity';
+import { OpenSessionDto } from './dto/open-session.dto';
+import { CloseSessionDto } from './dto/close-session.dto';
+import { CreateMovementDto } from './dto/create-movement.dto';
+
+@Injectable()
+export class CashSessionsService {
+  constructor(
+    @InjectRepository(CashSession)
+    private readonly sessionRepository: Repository<CashSession>,
+    @InjectRepository(CashMovement)
+    private readonly movementRepository: Repository<CashMovement>,
+  ) {}
+
+  /**
+   * Open a new cash session
+   */
+  async openSession(
+    userId: string,
+    openSessionDto: OpenSessionDto,
+  ): Promise<CashSession> {
+    // 1. Check if terminal already has an open session
+    const existingTerminalSession = await this.sessionRepository.findOne({
+      where: {
+        terminalId: openSessionDto.terminalId,
+        status: CashSessionStatus.OPEN,
+      },
+      relations: ['user', 'terminal'],
+    });
+
+    if (existingTerminalSession) {
+      throw new BadRequestException(
+        `Terminal "${existingTerminalSession.terminal.name}" already has an open session (opened by ${existingTerminalSession.user.fullName})`,
+      );
+    }
+
+    // 2. Check if user already has an open session in ANY terminal
+    const existingUserSession = await this.sessionRepository.findOne({
+      where: {
+        userId,
+        status: CashSessionStatus.OPEN,
+      },
+      relations: ['user', 'terminal'],
+    });
+
+    if (existingUserSession) {
+      throw new BadRequestException(
+        `You already have an open session in terminal "${existingUserSession.terminal.name}". Please close it before opening a new one.`,
+      );
+    }
+
+    // 3. Create new session
+    const session = this.sessionRepository.create({
+      ...openSessionDto,
+      userId,
+      expectedAmount: openSessionDto.openingAmount,
+      status: CashSessionStatus.OPEN,
+    });
+
+    return await this.sessionRepository.save(session);
+  }
+
+  /**
+   * Close a cash session
+   * @param sessionId - ID of the session to close
+   * @param userId - ID of the user closing the session
+   * @param userRole - Role of the user (ADMIN, MANAGER, CASHIER)
+   * @param closeSessionDto - Closing information
+   */
+  async closeSession(
+    sessionId: string,
+    userId: string,
+    userRole: string,
+    closeSessionDto: CloseSessionDto,
+  ): Promise<CashSession> {
+    const session = await this.findOne(sessionId);
+
+    if (session.status === CashSessionStatus.CLOSED) {
+      throw new BadRequestException('Session is already closed');
+    }
+
+    // Verificar permisos de cierre
+    const isOwnSession = session.userId === userId;
+    const isAdmin = userRole === 'ADMIN';
+    const isManager = userRole === 'MANAGER';
+    const canClose = isOwnSession || isAdmin || isManager;
+
+    if (!canClose) {
+      throw new ForbiddenException(
+        'You can only close your own cash sessions. Contact an administrator or manager for assistance.',
+      );
+    }
+
+    // Calculate difference
+    const differenceAmount =
+      closeSessionDto.closingAmount - session.expectedAmount;
+
+    session.closingAmount = closeSessionDto.closingAmount;
+    session.closingNotes = closeSessionDto.closingNotes;
+    session.differenceAmount = differenceAmount;
+    session.closedByUserId = userId; // Registrar quién cerró la sesión
+    session.status = CashSessionStatus.CLOSED;
+    session.closedAt = new Date();
+
+    return await this.sessionRepository.save(session);
+  }
+
+  /**
+   * Get all sessions with optional filters
+   */
+  async findAll(
+    terminalId?: string,
+    userId?: string,
+    status?: CashSessionStatus,
+  ): Promise<CashSession[]> {
+    const queryBuilder = this.sessionRepository
+      .createQueryBuilder('session')
+      .leftJoinAndSelect('session.terminal', 'terminal')
+      .leftJoinAndSelect('session.user', 'user')
+      .orderBy('session.openedAt', 'DESC');
+
+    if (terminalId) {
+      queryBuilder.andWhere('session.terminalId = :terminalId', { terminalId });
+    }
+
+    if (userId) {
+      queryBuilder.andWhere('session.userId = :userId', { userId });
+    }
+
+    if (status) {
+      queryBuilder.andWhere('session.status = :status', { status });
+    }
+
+    return await queryBuilder.getMany();
+  }
+
+  /**
+   * Get currently open session for a terminal
+   */
+  async getOpenSessionByTerminal(terminalId: string): Promise<CashSession | null> {
+    return await this.sessionRepository.findOne({
+      where: {
+        terminalId,
+        status: CashSessionStatus.OPEN,
+      },
+      relations: ['terminal', 'user', 'movements'],
+    });
+  }
+
+  /**
+   * Get currently open session for a user
+   */
+  async getOpenSessionByUser(userId: string): Promise<CashSession | null> {
+    return await this.sessionRepository.findOne({
+      where: {
+        userId,
+        status: CashSessionStatus.OPEN,
+      },
+      relations: ['terminal', 'user', 'movements'],
+    });
+  }
+
+  /**
+   * Find one session by ID
+   */
+  async findOne(id: string): Promise<CashSession> {
+    const session = await this.sessionRepository.findOne({
+      where: { id },
+      relations: ['terminal', 'user', 'movements', 'movements.creator'],
+    });
+
+    if (!session) {
+      throw new NotFoundException(`Cash session with ID ${id} not found`);
+    }
+
+    return session;
+  }
+
+  /**
+   * Add a cash movement to a session
+   */
+  async addMovement(
+    sessionId: string,
+    userId: string,
+    createMovementDto: CreateMovementDto,
+  ): Promise<CashMovement> {
+    const session = await this.sessionRepository.findOne({
+      where: { id: sessionId },
+    });
+
+    if (!session) {
+      throw new NotFoundException(`Cash session with ID ${sessionId} not found`);
+    }
+
+    if (session.status === CashSessionStatus.CLOSED) {
+      throw new BadRequestException('Cannot add movements to a closed session');
+    }
+
+    // Create movement
+    const movement = this.movementRepository.create({
+      ...createMovementDto,
+      sessionId,
+      createdBy: userId,
+    });
+
+    const savedMovement = await this.movementRepository.save(movement);
+
+    // Update expected amount based on movement type
+    if (createMovementDto.type === CashMovementType.DEPOSIT) {
+      session.expectedAmount = Number(session.expectedAmount) + Number(createMovementDto.amount);
+    } else if (createMovementDto.type === CashMovementType.WITHDRAWAL) {
+      session.expectedAmount = Number(session.expectedAmount) - Number(createMovementDto.amount);
+    }
+    // ADJUSTMENT doesn't change expected amount, it's just for records
+
+    await this.sessionRepository.save(session);
+
+    return savedMovement;
+  }
+
+  /**
+   * Get movements for a session
+   */
+  async getSessionMovements(sessionId: string): Promise<CashMovement[]> {
+    const session = await this.findOne(sessionId);
+    
+    return await this.movementRepository.find({
+      where: { sessionId },
+      relations: ['creator'],
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  /**
+   * Get session statistics
+   */
+  async getSessionStats(sessionId: string) {
+    const session = await this.findOne(sessionId);
+    const movements = await this.getSessionMovements(sessionId);
+
+    const deposits = movements
+      .filter((m) => m.type === CashMovementType.DEPOSIT)
+      .reduce((sum, m) => sum + Number(m.amount), 0);
+
+    const withdrawals = movements
+      .filter((m) => m.type === CashMovementType.WITHDRAWAL)
+      .reduce((sum, m) => sum + Number(m.amount), 0);
+
+    return {
+      session,
+      movements,
+      stats: {
+        totalDeposits: deposits,
+        totalWithdrawals: withdrawals,
+        netMovements: deposits - withdrawals,
+        movementCount: movements.length,
+      },
+    };
+  }
+}
