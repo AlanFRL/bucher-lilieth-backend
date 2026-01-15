@@ -16,6 +16,10 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
         entities: [__dirname + '/../**/*.entity{.ts,.js}'],
         synchronize: configService.get('nodeEnv') === 'development', // Solo en desarrollo
         logging: configService.get('nodeEnv') === 'development',
+        // SSL requerido para Heroku PostgreSQL y otras bases de datos en la nube
+        ssl: configService.get('nodeEnv') === 'production' ? {
+          rejectUnauthorized: false
+        } : false,
       }),
       inject: [ConfigService],
     }),
