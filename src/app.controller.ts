@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Post } from '@nestjs/common';
 import { AppService } from './app.service';
 
 @Controller()
@@ -18,5 +18,10 @@ export class AppController {
       service: 'butcher-lilieth-backend',
       version: '0.1.0',
     };
+  }
+
+  @Post('seed')
+  async runSeed() {
+    return this.appService.runSeed();
   }
 }
