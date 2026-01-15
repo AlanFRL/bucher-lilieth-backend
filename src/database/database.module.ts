@@ -14,7 +14,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
         password: configService.get('database.password'),
         database: configService.get('database.database'),
         entities: [__dirname + '/../**/*.entity{.ts,.js}'],
-        synchronize: configService.get('nodeEnv') === 'development', // Solo en desarrollo
+        synchronize: true, // TEMPORAL: Crear tablas automáticamente (cambiar a false después)
         logging: configService.get('nodeEnv') === 'development',
         // SSL requerido para Heroku PostgreSQL y otras bases de datos en la nube
         ssl: configService.get('nodeEnv') === 'production' ? {
