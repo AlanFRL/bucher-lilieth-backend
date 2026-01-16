@@ -89,8 +89,13 @@ export class SalesService {
         }
 
         // Validate stock if tracking is enabled
-        if (product.trackInventory) {
-          const availableStock = Number(product.stockQuantity);
+        // Solo validar stock para productos UNIT (no WEIGHT ni VACUUM_PACKED)
+        const shouldTrackStock = product.inventoryType === 'UNIT' || 
+                                 product.inventoryType === 'UNIT_STOCK' ||
+                                 (product.trackInventory && product.saleType === 'UNIT');
+        
+        if (shouldTrackStock) {
+          const availableStock = Number(product.stockQuantity || 0);
           if (availableStock < itemDto.quantity) {
             throw new BadRequestException(
               `Insufficient stock for product "${product.name}". Available: ${availableStock}, Requested: ${itemDto.quantity}`,
@@ -131,9 +136,13 @@ export class SalesService {
 
         subtotal += itemSubtotal;
 
-        // Update product stock
-        if (product.trackInventory) {
-          product.stockQuantity = Number(product.stockQuantity) - quantity;
+        // Update product stock - Solo para productos UNIT
+        const shouldTrackStock = product.inventoryType === 'UNIT' || 
+                                 product.inventoryType === 'UNIT_STOCK' ||
+                                 (product.trackInventory && product.saleType === 'UNIT');
+        
+        if (shouldTrackStock) {
+          product.stockQuantity = Number(product.stockQuantity || 0) - quantity;
           await manager.save(Product, product);
         }
       }
