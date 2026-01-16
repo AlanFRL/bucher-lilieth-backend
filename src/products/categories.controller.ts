@@ -4,9 +4,10 @@ import {
   Post,
   Body,
   Param,
-  Put,
+  Patch,
   Delete,
   Query,
+  ParseBoolPipe,
 } from '@nestjs/common';
 import { CategoriesService } from './categories.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
@@ -21,8 +22,11 @@ export class CategoriesController {
   }
 
   @Get()
-  findAll(@Query('search') search?: string) {
-    return this.categoriesService.findAll(search);
+  findAll(
+    @Query('search') search?: string,
+    @Query('includeInactive', new ParseBoolPipe({ optional: true })) includeInactive?: boolean,
+  ) {
+    return this.categoriesService.findAll(search, includeInactive);
   }
 
   @Get(':id')
@@ -30,16 +34,26 @@ export class CategoriesController {
     return this.categoriesService.findOne(id);
   }
 
-  @Put(':id')
+  @Get(':id/product-count')
+  getProductCount(@Param('id') id: string) {
+    return this.categoriesService.getProductCount(id);
+  }
+
+  @Patch(':id')
   update(
     @Param('id') id: string,
-    @Body() updateData: Partial<CreateCategoryDto>,
+    @Body() updateData: Partial<CreateCategoryDto & { isActive?: boolean }>,
   ) {
     return this.categoriesService.update(id, updateData);
   }
 
-  @Delete(':id')
+  @Patch(':id/deactivate')
   deactivate(@Param('id') id: string) {
     return this.categoriesService.deactivate(id);
+  }
+
+  @Delete(':id')
+  delete(@Param('id') id: string) {
+    return this.categoriesService.delete(id);
   }
 }
