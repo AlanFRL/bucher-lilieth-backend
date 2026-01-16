@@ -8,7 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { Sale, PaymentMethod, SaleStatus } from './entities/sale.entity';
 import { SaleItem } from './entities/sale-item.entity';
-import { Product } from '../products/entities/product.entity';
+import { Product, InventoryType } from '../products/entities/product.entity';
 import { CashSession, CashSessionStatus } from '../cash-sessions/entities/cash-session.entity';
 import { User } from '../users/entities/user.entity';
 import { CreateSaleDto } from './dto/create-sale.dto';
@@ -90,8 +90,7 @@ export class SalesService {
 
         // Validate stock if tracking is enabled
         // Solo validar stock para productos UNIT (no WEIGHT ni VACUUM_PACKED)
-        const shouldTrackStock = product.inventoryType === 'UNIT' || 
-                                 product.inventoryType === 'UNIT_STOCK' ||
+        const shouldTrackStock = product.inventoryType === InventoryType.UNIT || 
                                  (product.trackInventory && product.saleType === 'UNIT');
         
         if (shouldTrackStock) {
@@ -137,10 +136,6 @@ export class SalesService {
         subtotal += itemSubtotal;
 
         // Update product stock - Solo para productos UNIT
-        const shouldTrackStock = product.inventoryType === 'UNIT' || 
-                                 product.inventoryType === 'UNIT_STOCK' ||
-                                 (product.trackInventory && product.saleType === 'UNIT');
-        
         if (shouldTrackStock) {
           product.stockQuantity = Number(product.stockQuantity || 0) - quantity;
           await manager.save(Product, product);
