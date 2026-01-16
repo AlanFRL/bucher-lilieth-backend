@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
@@ -9,6 +10,7 @@ import { Sale, PaymentMethod, SaleStatus } from './entities/sale.entity';
 import { SaleItem } from './entities/sale-item.entity';
 import { Product } from '../products/entities/product.entity';
 import { CashSession, CashSessionStatus } from '../cash-sessions/entities/cash-session.entity';
+import { User } from '../users/entities/user.entity';
 import { CreateSaleDto } from './dto/create-sale.dto';
 
 @Injectable()
@@ -44,6 +46,24 @@ export class SalesService {
 
       if (session.status !== CashSessionStatus.OPEN) {
         throw new BadRequestException('Cash session is not open');
+      }
+
+      // 🔒 VALIDACIÓN: Solo ADMIN, MANAGER o dueño de la sesión pueden hacer ventas
+      const sessionUser = await manager.findOne(User, {
+        where: { id: session.userId },
+      });
+      
+      const currentUser = await manager.findOne(User, {
+        where: { id: userId },
+      });
+
+      const isSessionOwner = session.userId === userId;
+      const isAdminOrManager = currentUser && (currentUser.role === 'ADMIN' || currentUser.role === 'MANAGER');
+      
+      if (!isSessionOwner && !isAdminOrManager) {
+        throw new ForbiddenException(
+          'You can only make sales in your own cash session. Contact an administrator if you need assistance.',
+        );
       }
 
       // 2. Validate and prepare sale items
