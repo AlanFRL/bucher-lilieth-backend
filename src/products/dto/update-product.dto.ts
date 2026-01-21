@@ -15,10 +15,7 @@ import {
 } from '../entities/product.entity';
 
 export class UpdateProductDto {
-  @IsString()
-  @IsOptional()
-  @MaxLength(50)
-  sku?: string;
+  // SKU is immutable and cannot be changed after creation
 
   @IsString()
   @IsOptional()

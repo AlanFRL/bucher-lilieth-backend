@@ -16,10 +16,7 @@ import {
 } from '../entities/product.entity';
 
 export class CreateProductDto {
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(50)
-  sku: string;
+  // SKU will be auto-generated, not provided by user
 
   @IsString()
   @IsNotEmpty()
@@ -46,13 +43,12 @@ export class CreateProductDto {
   costPrice?: number;
 
   @IsString()
-  @IsOptional()
+  @IsNotEmpty()
   @MaxLength(100)
-  barcode?: string;
+  barcode: string;
 
   @IsEnum(BarcodeType)
-  @IsOptional()
-  barcodeType?: BarcodeType;
+  barcodeType: BarcodeType;
 
   @IsNumber()
   @IsOptional()

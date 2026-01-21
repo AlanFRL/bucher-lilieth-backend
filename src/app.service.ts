@@ -131,64 +131,70 @@ export class AppService {
         
         // Carnes por peso
         await this.productsService.create({
-          sku: 'CARNE-001',
           name: 'Lomo de Res',
           saleType: SaleType.WEIGHT,
           inventoryType: InventoryType.WEIGHT,
           price: 45.0,
+          barcode: '200001',
+          barcodeType: BarcodeType.WEIGHT_EMBEDDED,
           unit: 'kg',
           categoryId: carnes.id,
         });
 
         await this.productsService.create({
-          sku: 'CARNE-002',
           name: 'Bistec de Res',
           saleType: SaleType.WEIGHT,
           inventoryType: InventoryType.WEIGHT,
           price: 38.0,
+          barcode: '200002',
+          barcodeType: BarcodeType.WEIGHT_EMBEDDED,
           unit: 'kg',
           categoryId: carnes.id,
         });
 
         // Aves
         await this.productsService.create({
-          sku: 'AVE-001',
           name: 'Pechuga de Pollo',
           saleType: SaleType.WEIGHT,
           inventoryType: InventoryType.WEIGHT,
           price: 28.0,
+          barcode: '200003',
+          barcodeType: BarcodeType.WEIGHT_EMBEDDED,
           unit: 'kg',
           categoryId: aves.id,
         });
 
         // Productos al vacío (por unidad)
         await this.productsService.create({
-          sku: 'VAC-001',
           name: 'Costillas al Vacío',
           saleType: SaleType.UNIT,
           inventoryType: InventoryType.VACUUM_PACKED,
           price: 85.0,
+          barcode: '200004',
+          barcodeType: BarcodeType.WEIGHT_EMBEDDED,
           unit: 'paquete',
           categoryId: alVacio.id,
         });
 
         // Embutidos
         await this.productsService.create({
-          sku: 'EMB-001',
           name: 'Chorizo Argentino',
           saleType: SaleType.WEIGHT,
           inventoryType: InventoryType.WEIGHT,
           price: 42.0,
+          barcode: '200005',
+          barcodeType: BarcodeType.WEIGHT_EMBEDDED,
           unit: 'kg',
           categoryId: embutidos.id,
         });
 
         await this.productsService.create({
-          sku: 'EMB-002',
           name: 'Salchicha Parrillera',
           saleType: SaleType.UNIT,
           inventoryType: InventoryType.UNIT,
           price: 3.5,
+          barcode: '7501234567890',
+          barcodeType: BarcodeType.STANDARD,
           unit: 'unidad',
           categoryId: embutidos.id,
         });
