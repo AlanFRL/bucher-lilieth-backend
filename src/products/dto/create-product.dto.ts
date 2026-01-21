@@ -43,9 +43,9 @@ export class CreateProductDto {
   costPrice?: number;
 
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   @MaxLength(100)
-  barcode: string;
+  barcode?: string;
 
   @IsEnum(BarcodeType)
   barcodeType: BarcodeType;

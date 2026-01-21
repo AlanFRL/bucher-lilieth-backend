@@ -16,18 +16,24 @@ export class ProductsService {
   ) {}
 
   async create(createProductDto: CreateProductDto): Promise<Product> {
-    // Validate barcode format
-    this.validateBarcodeFormat(createProductDto.barcode, createProductDto.barcodeType);
+    // Validate barcode format only if not NONE
+    if (createProductDto.barcodeType !== BarcodeType.NONE) {
+      if (!createProductDto.barcode) {
+        throw new BadRequestException('Barcode is required when barcodeType is not NONE');
+      }
+      
+      this.validateBarcodeFormat(createProductDto.barcode, createProductDto.barcodeType);
 
-    // Check if barcode already exists
-    const existingBarcode = await this.productsRepository.findOne({
-      where: { barcode: createProductDto.barcode },
-    });
+      // Check if barcode already exists
+      const existingBarcode = await this.productsRepository.findOne({
+        where: { barcode: createProductDto.barcode },
+      });
 
-    if (existingBarcode) {
-      throw new ConflictException(
-        `Barcode ${createProductDto.barcode} already exists`,
-      );
+      if (existingBarcode) {
+        throw new ConflictException(
+          `Barcode ${createProductDto.barcode} already exists`,
+        );
+      }
     }
 
     // Auto-generate SKU based on category
@@ -36,6 +42,7 @@ export class ProductsService {
     const product = this.productsRepository.create({
       ...createProductDto,
       sku,
+      barcode: createProductDto.barcodeType === BarcodeType.NONE ? undefined : createProductDto.barcode,
     });
 
     return this.productsRepository.save(product);
@@ -112,14 +119,14 @@ export class ProductsService {
         );
       }
     } else if (barcodeType === BarcodeType.STANDARD) {
-      // For standard barcodes, should be 8-13 digits
-      if (!/^\d{8,13}$/.test(barcode)) {
+      // For standard barcodes, should be 8-14 digits
+      if (!/^\d{8,14}$/.test(barcode)) {
         throw new BadRequestException(
-          'Standard barcode must be between 8 and 13 digits',
+          'Standard barcode must be between 8 and 14 digits',
         );
       }
     }
-    // INTERNAL type has no specific format validation
+    // NONE type has no barcode, no validation needed
   }
 
   async findAll(search?: string, categoryId?: string): Promise<Product[]> {

@@ -22,7 +22,7 @@ export enum InventoryType {
 
 export enum BarcodeType {
   STANDARD = 'STANDARD',
-  INTERNAL = 'INTERNAL',
+  NONE = 'NONE',
   WEIGHT_EMBEDDED = 'WEIGHT_EMBEDDED',
 }
 
