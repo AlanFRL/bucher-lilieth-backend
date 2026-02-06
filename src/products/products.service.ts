@@ -88,23 +88,40 @@ export class ProductsService {
 
   /**
    * Generate prefix from category name
-   * Takes first 2 letters of each word, up to 4 characters
+   * - If 1 word: Take first 4 letters (or all if less than 4)
+   * - If 2+ words: Take first 2 letters of each word, up to 4 characters
    * Examples:
-   * - "Carnes de Res" → "CARN" (CA + RN)
-   * - "Aves" → "AVES" (AVES + padding)
-   * - "Embutidos" → "EMBU" (first 4 letters)
+   * - "Res" → "RES" (1 word, 3 letters)
+   * - "Aves" → "AVES" (1 word, 4 letters)
+   * - "Embutidos" → "EMBU" (1 word, first 4 letters)
+   * - "Carnes de Res" → "CARE" (2+ words: CA + RE)
+   * - "Al Vacío" → "ALVA" (2+ words: AL + VA)
    */
   private generatePrefix(categoryName: string): string {
-    return categoryName
+    const normalized = categoryName
       .normalize('NFD') // Decompose accented characters
       .replace(/[\u0300-\u036f]/g, '') // Remove accents
       .replace(/[^a-zA-Z0-9\s]/g, '') // Remove special characters
-      .split(/\s+/) // Split by spaces
-      .map(word => word.substring(0, 2)) // Take first 2 letters of each word
-      .join('') // Join
-      .substring(0, 4) // Max 4 characters
-      .toUpperCase() // Uppercase
-      .padEnd(4, 'X'); // Pad with X if too short
+      .trim();
+    
+    const words = normalized.split(/\s+/).filter(w => w.length > 0);
+    
+    let prefix: string;
+    
+    if (words.length === 1) {
+      // Single word: take first 4 letters (or all if less)
+      prefix = words[0].substring(0, 4);
+    } else {
+      // Multiple words: take first 2 letters of each word
+      prefix = words
+        .map(word => word.substring(0, 2))
+        .join('')
+        .substring(0, 4); // Max 4 characters
+    }
+    
+    return prefix
+      .toUpperCase()
+      .padEnd(4, 'X'); // Pad with X if too short (< 4 chars)
   }
 
   /**
