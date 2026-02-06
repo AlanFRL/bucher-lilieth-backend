@@ -5,7 +5,47 @@
 **Base URL:** `http://localhost:3000/api`  
 **Base de Datos:** PostgreSQL 16.3  
 **ORM:** TypeORM  
-**Autenticación:** JWT Bearer Token
+**Autenticación:** JWT Bearer Token  
+**Timezone:** UTC (Base de datos) / America/La_Paz (Bolivia UTC-4, Frontend)
+
+---
+
+## ⏰ Manejo de Timezones
+
+### Estrategia de Timezones
+
+El sistema utiliza una estrategia consistente para manejar fechas y horas:
+
+**Backend:**
+- Todas las columnas TIMESTAMP se almacenan como `TIMESTAMP WITH TIME ZONE` en PostgreSQL
+- PostgreSQL almacena internamente en UTC y convierte automáticamente
+- TypeORM recibe ISO strings con offset (ej: `"2026-01-30T00:00:00-04:00"`)
+- PostgreSQL convierte el ISO string a UTC antes de almacenar
+- Las consultas devuelven ISO strings en UTC (ej: `"2026-01-30T04:00:00.000Z"`)
+
+**Frontend:**
+- Envía fechas como ISO strings con offset de Bolivia: `"2026-01-30T00:00:00-04:00"`
+- JavaScript automáticamente convierte UTC a timezone local del navegador
+- Muestra fechas usando `toLocaleString('es-BO', { timeZone: 'America/La_Paz' })`
+- Función `formatDateForBackend()` crea ISO strings con offset `-04:00`
+
+**Flujo completo:**
+```
+Usuario selecciona: "30/01/2026"
+      ↓
+Frontend: "2026-01-30T00:00:00-04:00"
+      ↓
+PostgreSQL almacena: "2026-01-30T04:00:00Z" (UTC)
+      ↓
+Backend devuelve: "2026-01-30T04:00:00.000Z"
+      ↓
+Frontend muestra: "30 de enero de 2026"
+```
+
+**IMPORTANTE:** 
+- No manipular fechas sumando/restando días manualmente
+- Confiar en los ISO strings con offset que vienen del frontend
+- PostgreSQL maneja automáticamente las conversiones de timezone
 
 ---
 
@@ -229,9 +269,9 @@ El `batch_number` puede ser:
 | `status` | ENUM | CashSessionStatus | NOT NULL, DEFAULT 'OPEN' | Estado de sesión |
 | `opening_notes` | TEXT | string \| null | NULLABLE | Notas al abrir |
 | `closing_notes` | TEXT | string \| null | NULLABLE | Notas al cerrar |
-| `opened_at` | TIMESTAMP | Date | NOT NULL, AUTO | Fecha/hora de apertura |
-| `closed_at` | TIMESTAMP | Date \| null | NULLABLE | Fecha/hora de cierre |
-| `updated_at` | TIMESTAMP | Date | NOT NULL, AUTO | Fecha de actualización |
+| `opened_at` | TIMESTAMP WITH TIME ZONE | Date | NOT NULL, AUTO | Fecha/hora de apertura (UTC) |
+| `closed_at` | TIMESTAMP WITH TIME ZONE | Date \| null | NULLABLE | Fecha/hora de cierre (UTC) |
+| `updated_at` | TIMESTAMP WITH TIME ZONE | Date | NOT NULL, AUTO | Fecha de actualización (UTC) |
 
 **Enum:**
 ```typescript
@@ -270,7 +310,7 @@ enum CashSessionStatus {
 | `amount` | DECIMAL(10,2) | number | NOT NULL | Monto del movimiento |
 | `reason` | TEXT | string \| null | NULLABLE | Razón del movimiento |
 | `created_by` | UUID | string | FOREIGN KEY, NOT NULL | Usuario que creó |
-| `created_at` | TIMESTAMP | Date | NOT NULL, AUTO | Fecha/hora de creación |
+| `created_at` | TIMESTAMP WITH TIME ZONE | Date | NOT NULL, AUTO | Fecha/hora de creación (UTC) |
 
 **Enum:**
 ```typescript
@@ -313,7 +353,7 @@ enum CashMovementType {
 | `notes` | TEXT | string \| null | NULLABLE | Notas de venta |
 | `customer_name` | VARCHAR(200) | string \| null | NULLABLE | Nombre de cliente |
 | `order_id` | UUID | string \| null | NULLABLE | Pedido asociado (si aplica) |
-| `created_at` | TIMESTAMP | Date | NOT NULL, AUTO | Fecha/hora de venta |
+| `created_at` | TIMESTAMP WITH TIME ZONE | Date | NOT NULL, AUTO | Fecha/hora de venta (UTC) |
 
 **Enums:**
 ```typescript
