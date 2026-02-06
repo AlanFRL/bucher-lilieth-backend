@@ -115,13 +115,17 @@ export class CashSessionsService {
   }
 
   /**
-   * Get all sessions with optional filters
+   * Get all sessions with optional filters and pagination
    */
   async findAll(
     terminalId?: string,
     userId?: string,
     status?: CashSessionStatus,
-  ): Promise<CashSession[]> {
+    startDate?: Date,
+    endDate?: Date,
+    page?: number,
+    limit?: number,
+  ): Promise<CashSession[] | { data: CashSession[]; total: number; page: number; totalPages: number }> {
     const queryBuilder = this.sessionRepository
       .createQueryBuilder('session')
       .leftJoinAndSelect('session.terminal', 'terminal')
@@ -140,6 +144,42 @@ export class CashSessionsService {
       queryBuilder.andWhere('session.status = :status', { status });
     }
 
+    // Filtros de fecha: buscar por openedAt o closedAt dentro del rango
+    // Usa directamente las fechas ISO recibidas del frontend (ya vienen con offset de Bolivia)
+    if (startDate) {
+      // Sesiones que se abrieron o cerraron después de startDate
+      queryBuilder.andWhere(
+        '(session.openedAt >= :startDate OR session.closedAt >= :startDate)',
+        { startDate },
+      );
+    }
+
+    if (endDate) {
+      // Sesiones que se abrieron antes o en endDate
+      // No sumar 1 día, usar directamente el endDate con hora 23:59:59 que viene del frontend
+      queryBuilder.andWhere(
+        'session.openedAt <= :endDate',
+        { endDate },
+      );
+    }
+
+    // Si se especifican page y limit, retornar con paginación
+    if (page !== undefined && limit !== undefined) {
+      const skip = (page - 1) * limit;
+      queryBuilder.skip(skip).take(limit);
+
+      const [data, total] = await queryBuilder.getManyAndCount();
+      const totalPages = Math.ceil(total / limit);
+
+      return {
+        data,
+        total,
+        page,
+        totalPages,
+      };
+    }
+
+    // Backward compatibility: sin paginación retornar array directo
     return await queryBuilder.getMany();
   }
 

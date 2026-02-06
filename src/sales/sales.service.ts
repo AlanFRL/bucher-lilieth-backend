@@ -237,14 +237,27 @@ export class SalesService {
   }
 
   /**
-   * Find all sales with optional filters
+   * Find all sales with optional filters and pagination
    */
   async findAll(
     sessionId?: string,
     cashierId?: string,
     startDate?: Date,
     endDate?: Date,
-  ): Promise<Sale[]> {
+    page?: number,
+    limit?: number,
+  ): Promise<Sale[] | { data: Sale[]; total: number; page: number; totalPages: number }> {
+    console.log('🔍 [SalesService] findAll called with:', {
+      sessionId,
+      cashierId,
+      startDate: startDate?.toISOString(),
+      endDate: endDate?.toISOString(),
+      page,
+      limit,
+      hasPage: page !== undefined,
+      hasLimit: limit !== undefined,
+    });
+
     const queryBuilder = this.saleRepository
       .createQueryBuilder('sale')
       .leftJoinAndSelect('sale.items', 'items')
@@ -262,16 +275,33 @@ export class SalesService {
     }
 
     if (startDate) {
+      // Usar directamente la fecha ISO recibida del frontend (ya viene con offset de Bolivia)
       queryBuilder.andWhere('sale.createdAt >= :startDate', { startDate });
     }
 
     if (endDate) {
-      // Add 1 day to endDate to include all sales on that day
-      const endDateTime = new Date(endDate);
-      endDateTime.setDate(endDateTime.getDate() + 1);
-      queryBuilder.andWhere('sale.createdAt < :endDate', { endDate: endDateTime });
+      // Usar directamente el endDate con hora 23:59:59 que viene del frontend
+      // No manipular fechas manualmente, confiar en el ISO string con offset
+      queryBuilder.andWhere('sale.createdAt <= :endDate', { endDate });
     }
 
+    // Si se especifican page y limit, retornar con paginación
+    if (page !== undefined && limit !== undefined) {
+      const skip = (page - 1) * limit;
+      queryBuilder.skip(skip).take(limit);
+
+      const [data, total] = await queryBuilder.getManyAndCount();
+      const totalPages = Math.ceil(total / limit);
+
+      return {
+        data,
+        total,
+        page,
+        totalPages,
+      };
+    }
+
+    // Backward compatibility: sin paginación retornar array directo
     return await queryBuilder.getMany();
   }
 
@@ -341,7 +371,9 @@ export class SalesService {
    * Get sales statistics for a session
    */
   async getSessionStats(sessionId: string) {
-    const sales = await this.findAll(sessionId);
+    const salesResult = await this.findAll(sessionId);
+    // When no pagination params, findAll returns array directly
+    const sales = Array.isArray(salesResult) ? salesResult : salesResult.data;
 
     const completedSales = sales.filter((s) => s.status === SaleStatus.COMPLETED);
 
@@ -398,12 +430,14 @@ export class SalesService {
    * Get general sales statistics by date range
    */
   async getStatistics(startDate?: Date, endDate?: Date) {
-    const sales = await this.findAll(
+    const salesResult = await this.findAll(
       undefined,
       undefined,
       startDate,
       endDate,
     );
+    // When no pagination params, findAll returns array directly
+    const sales = Array.isArray(salesResult) ? salesResult : salesResult.data;
 
     const completedSales = sales.filter((s) => s.status === SaleStatus.COMPLETED);
     const cancelledSales = sales.filter((s) => s.status === SaleStatus.CANCELLED);

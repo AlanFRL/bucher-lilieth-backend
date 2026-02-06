@@ -47,15 +47,27 @@ export class CashSessionsController {
   }
 
   /**
-   * Get all sessions with optional filters
+   * Get all sessions with optional filters and pagination
    */
   @Get()
   findAll(
     @Query('terminalId') terminalId?: string,
     @Query('userId') userId?: string,
     @Query('status') status?: CashSessionStatus,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
-    return this.cashSessionsService.findAll(terminalId, userId, status);
+    return this.cashSessionsService.findAll(
+      terminalId, 
+      userId, 
+      status,
+      startDate ? new Date(startDate) : undefined,
+      endDate ? new Date(endDate) : undefined,
+      page ? parseInt(page, 10) : undefined,
+      limit ? parseInt(limit, 10) : undefined,
+    );
   }
 
   /**

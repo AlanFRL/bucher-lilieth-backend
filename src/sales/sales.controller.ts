@@ -41,7 +41,7 @@ export class SalesController {
   }
 
   /**
-   * Get all sales with optional filters
+   * Get all sales with optional filters and pagination
    */
   @Get()
   findAll(
@@ -49,12 +49,37 @@ export class SalesController {
     @Query('cashierId') cashierId?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
+    console.log('🔍 [SalesController] Query params received:', {
+      sessionId,
+      cashierId,
+      startDate,
+      endDate,
+      page,
+      limit,
+      pageType: typeof page,
+      limitType: typeof limit,
+    });
+
+    const pageNum = page ? parseInt(page, 10) : undefined;
+    const limitNum = limit ? parseInt(limit, 10) : undefined;
+
+    console.log('🔍 [SalesController] Parsed pagination:', {
+      pageNum,
+      limitNum,
+      pageNumType: typeof pageNum,
+      limitNumType: typeof limitNum,
+    });
+
     return this.salesService.findAll(
       sessionId,
       cashierId,
       startDate ? new Date(startDate) : undefined,
       endDate ? new Date(endDate) : undefined,
+      pageNum,
+      limitNum,
     );
   }
 

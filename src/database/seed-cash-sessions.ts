@@ -35,7 +35,8 @@ async function seedCashSessions() {
     console.log(`📋 Using user: ${cashier.username} (${cashier.role})\n`);
 
     // Check if there are already open sessions
-    const existingSessions = await cashSessionsService.findAll();
+    const existingSessionsResult = await cashSessionsService.findAll();
+    const existingSessions = Array.isArray(existingSessionsResult) ? existingSessionsResult : existingSessionsResult.data;
     if (existingSessions.length > 0) {
       console.log('⚠️  Cash sessions already exist in the database.');
       console.log(`   Found ${existingSessions.length} session(s).\n`);
@@ -133,7 +134,9 @@ async function seedCashSessions() {
     console.log('🎉 Cash sessions seed completed successfully!\n');
     console.log(`📊 Summary:`);
     console.log(`   Sessions created: ${created}`);
-    console.log(`   Total sessions in database: ${(await cashSessionsService.findAll()).length}\n`);
+    const allSessionsResult = await cashSessionsService.findAll();
+    const allSessions = Array.isArray(allSessionsResult) ? allSessionsResult : allSessionsResult.data;
+    console.log(`   Total sessions in database: ${allSessions.length}\n`);
   } catch (error) {
     console.error('❌ Error seeding cash sessions:', error.message);
     throw error;
