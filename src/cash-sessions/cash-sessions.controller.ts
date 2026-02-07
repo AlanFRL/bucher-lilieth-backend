@@ -111,7 +111,7 @@ export class CashSessionsController {
     @Request() req,
     @Body() createMovementDto: CreateMovementDto,
   ) {
-    return this.cashSessionsService.addMovement(id, req.user.userId, createMovementDto);
+    return this.cashSessionsService.addMovement(id, req.user.id, createMovementDto);
   }
 
   /**
