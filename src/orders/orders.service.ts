@@ -491,6 +491,7 @@ export class OrdersService {
     }
 
     // 3. Verify order belongs to user's current open session
+    // Exception: CANCELLED orders can be deleted from any session
     const currentSession = await this.cashSessionRepository.findOne({
       where: {
         userId,
@@ -502,14 +503,16 @@ export class OrdersService {
       throw new ForbiddenException('No open session found for current user');
     }
 
-    // Check if order was created during this session
-    const orderCreatedAt = new Date(order.createdAt);
-    const sessionOpenedAt = new Date(currentSession.openedAt);
+    // Check if order was created during this session (skip for CANCELLED orders)
+    if (order.status !== OrderStatus.CANCELLED) {
+      const orderCreatedAt = new Date(order.createdAt);
+      const sessionOpenedAt = new Date(currentSession.openedAt);
 
-    if (orderCreatedAt < sessionOpenedAt) {
-      throw new ForbiddenException(
-        'Cannot delete orders from previous sessions'
-      );
+      if (orderCreatedAt < sessionOpenedAt) {
+        throw new ForbiddenException(
+          'Cannot delete orders from previous sessions'
+        );
+      }
     }
 
     // 4. Delete order (items will be cascade deleted)
