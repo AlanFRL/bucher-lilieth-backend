@@ -3,6 +3,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  IsInt,
   Min,
   IsArray,
   ValidateNested,
@@ -17,6 +18,11 @@ export class CreateSaleItemDto {
   @IsNumber()
   @Min(0.001)
   quantity: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  pieces?: number;
 
   @IsOptional()
   @IsNumber()
@@ -81,8 +87,8 @@ export class CreateSaleDto {
   notes?: string;
 
   @IsOptional()
-  @IsString()
-  customerName?: string;
+  @IsUUID()
+  customerId?: string;
 
   @IsOptional()
   @IsUUID()

@@ -7,7 +7,6 @@ import {
 } from 'typeorm';
 import { Sale } from './sale.entity';
 import { Product } from '../../products/entities/product.entity';
-import { ProductBatch } from '../../product-batches/entities/product-batch.entity';
 
 /**
  * SaleItem entity represents an individual product line in a sale
@@ -46,6 +45,9 @@ export class SaleItem {
   })
   quantity: number;
 
+  @Column({ type: 'integer', nullable: true })
+  pieces?: number;
+
   @Column({ length: 20, nullable: true })
   unit?: string;
 
@@ -72,17 +74,7 @@ export class SaleItem {
   })
   subtotal: number;
 
-  // Batch-specific fields (nullable, only for batch-tracked products)
-  @Column({ type: 'uuid', name: 'batch_id', nullable: true })
-  batchId?: string;
-
-  @ManyToOne(() => ProductBatch, { nullable: true })
-  @JoinColumn({ name: 'batch_id' })
-  batch?: ProductBatch;
-
-  @Column({ length: 100, name: 'batch_number', nullable: true })
-  batchNumber?: string;
-
+  // Optional field for weight-based products (WEIGHT, VACUUM_PACKED)
   @Column({
     type: 'decimal',
     precision: 10,

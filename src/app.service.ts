@@ -4,7 +4,7 @@ import { UserRole } from './users/entities/user.entity';
 import { TerminalsService } from './terminals/terminals.service';
 import { CategoriesService } from './products/categories.service';
 import { ProductsService } from './products/products.service';
-import { SaleType, InventoryType, BarcodeType } from './products/entities/product.entity';
+import { SaleType, BarcodeType } from './products/entities/product.entity';
 
 @Injectable()
 export class AppService {
@@ -133,7 +133,6 @@ export class AppService {
         await this.productsService.create({
           name: 'Lomo de Res',
           saleType: SaleType.WEIGHT,
-          inventoryType: InventoryType.WEIGHT,
           price: 45.0,
           barcode: '200001',
           barcodeType: BarcodeType.WEIGHT_EMBEDDED,
@@ -144,7 +143,6 @@ export class AppService {
         await this.productsService.create({
           name: 'Bistec de Res',
           saleType: SaleType.WEIGHT,
-          inventoryType: InventoryType.WEIGHT,
           price: 38.0,
           barcode: '200002',
           barcodeType: BarcodeType.WEIGHT_EMBEDDED,
@@ -156,7 +154,6 @@ export class AppService {
         await this.productsService.create({
           name: 'Pechuga de Pollo',
           saleType: SaleType.WEIGHT,
-          inventoryType: InventoryType.WEIGHT,
           price: 28.0,
           barcode: '200003',
           barcodeType: BarcodeType.WEIGHT_EMBEDDED,
@@ -168,11 +165,10 @@ export class AppService {
         await this.productsService.create({
           name: 'Costillas al Vacío',
           saleType: SaleType.UNIT,
-          inventoryType: InventoryType.VACUUM_PACKED,
           price: 85.0,
           barcode: '200004',
           barcodeType: BarcodeType.WEIGHT_EMBEDDED,
-          unit: 'paquete',
+          unit: 'unidad',
           categoryId: alVacio.id,
         });
 
@@ -180,7 +176,6 @@ export class AppService {
         await this.productsService.create({
           name: 'Chorizo Argentino',
           saleType: SaleType.WEIGHT,
-          inventoryType: InventoryType.WEIGHT,
           price: 42.0,
           barcode: '200005',
           barcodeType: BarcodeType.WEIGHT_EMBEDDED,
@@ -191,7 +186,6 @@ export class AppService {
         await this.productsService.create({
           name: 'Salchicha Parrillera',
           saleType: SaleType.UNIT,
-          inventoryType: InventoryType.UNIT,
           price: 3.5,
           barcode: '7501234567890',
           barcodeType: BarcodeType.STANDARD,

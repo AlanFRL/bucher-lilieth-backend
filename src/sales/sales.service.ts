@@ -8,7 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { Sale, PaymentMethod, SaleStatus } from './entities/sale.entity';
 import { SaleItem } from './entities/sale-item.entity';
-import { Product, InventoryType } from '../products/entities/product.entity';
+import { Product } from '../products/entities/product.entity';
 import { CashSession, CashSessionStatus } from '../cash-sessions/entities/cash-session.entity';
 import { User } from '../users/entities/user.entity';
 import { CreateSaleDto } from './dto/create-sale.dto';
@@ -89,11 +89,8 @@ export class SalesService {
         }
 
         // Validate stock if tracking is enabled
-        // Solo validar stock para productos UNIT (no WEIGHT ni VACUUM_PACKED)
-        const shouldTrackStock = product.inventoryType === InventoryType.UNIT || 
-                                 (product.trackInventory && product.saleType === 'UNIT');
-        
-        if (shouldTrackStock) {
+        // Solo validar stock para productos UNIT (no WEIGHT)
+        if (product.saleType === 'UNIT') {
           const availableStock = Number(product.stockQuantity || 0);
           if (availableStock < itemDto.quantity) {
             throw new BadRequestException(
@@ -102,11 +99,11 @@ export class SalesService {
           }
         }
 
-        // Calculate item totals
+        // Calculate item totals (all rounded to integers)
         const unitPrice = itemDto.unitPrice !== undefined ? Number(itemDto.unitPrice) : Number(product.price);
         const quantity = Number(itemDto.quantity);
-        const discount = Number(itemDto.discount || 0);
-        const itemSubtotal = unitPrice * quantity - discount;
+        const discount = Math.round(Number(itemDto.discount || 0));
+        const itemSubtotal = Math.round(unitPrice * quantity - discount);
 
         // Prepare sale item data with optional batch fields
         const saleItemData: any = {
@@ -120,6 +117,11 @@ export class SalesService {
           subtotal: itemSubtotal,
         };
 
+        // Add optional fields if provided
+        if (itemDto.pieces !== undefined) {
+          saleItemData.pieces = itemDto.pieces;
+        }
+        
         // Add batch fields if provided (for batch-tracked products)
         if (itemDto.batchId) {
           saleItemData.batchId = itemDto.batchId;
@@ -136,15 +138,15 @@ export class SalesService {
         subtotal += itemSubtotal;
 
         // Update product stock - Solo para productos UNIT
-        if (shouldTrackStock) {
+        if (product.saleType === 'UNIT') {
           product.stockQuantity = Number(product.stockQuantity || 0) - quantity;
           await manager.save(Product, product);
         }
       }
 
-      // 3. Calculate sale totals
-      const saleDiscount = Number(createSaleDto.discount || 0);
-      const total = subtotal - saleDiscount;
+      // 3. Calculate sale totals (all rounded to integers)
+      const saleDiscount = Math.round(Number(createSaleDto.discount || 0));
+      const total = Math.round(subtotal - saleDiscount);
 
       // 4. Validate payment method and amounts
       const paymentMethodUpper = createSaleDto.paymentMethod.toUpperCase();
@@ -192,7 +194,7 @@ export class SalesService {
         changeAmount,
         status: SaleStatus.COMPLETED,
         notes: createSaleDto.notes,
-        customerName: createSaleDto.customerName,
+        customerId: createSaleDto.customerId,
         orderId: createSaleDto.orderId,
       });
 
@@ -341,7 +343,7 @@ export class SalesService {
 
       // Restore inventory for each item
       for (const item of sale.items) {
-        if (item.product.trackInventory) {
+        if (item.product.saleType === 'UNIT') {
           item.product.stockQuantity =
             Number(item.product.stockQuantity) + Number(item.quantity);
           await manager.save(Product, item.product);

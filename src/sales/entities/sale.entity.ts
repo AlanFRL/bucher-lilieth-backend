@@ -9,6 +9,7 @@ import {
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { CashSession } from '../../cash-sessions/entities/cash-session.entity';
+import { Customer } from '../../customers/entities/customer.entity';
 import { SaleItem } from './sale-item.entity';
 
 export enum PaymentMethod {
@@ -121,8 +122,12 @@ export class Sale {
   @Column({ type: 'text', nullable: true })
   notes?: string;
 
-  @Column({ length: 200, nullable: true, name: 'customer_name' })
-  customerName?: string;
+  @Column({ type: 'uuid', nullable: true, name: 'customer_id' })
+  customerId?: string;
+
+  @ManyToOne(() => Customer, (customer) => customer.sales, { nullable: true })
+  @JoinColumn({ name: 'customer_id' })
+  customer?: Customer;
 
   @Column({ type: 'uuid', nullable: true, name: 'order_id' })
   orderId?: string;

@@ -13,7 +13,7 @@ export const AppDataSource = new DataSource({
   database: process.env.DB_DATABASE || 'butcher_lilieth',
   entities: [__dirname + '/../**/*.entity{.ts,.js}'],
   migrations: [__dirname + '/migrations/*{.ts,.js}'],
-  synchronize: false, // Desactivar en producción
+  synchronize: false, // Production mode - use migrations
   logging: true,
   ssl: process.env.DB_SSL === 'true' ? {
     rejectUnauthorized: false

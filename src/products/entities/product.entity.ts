@@ -14,12 +14,6 @@ export enum SaleType {
   WEIGHT = 'WEIGHT',
 }
 
-export enum InventoryType {
-  UNIT = 'UNIT',
-  WEIGHT = 'WEIGHT',
-  VACUUM_PACKED = 'VACUUM_PACKED',
-}
-
 export enum BarcodeType {
   STANDARD = 'STANDARD',
   NONE = 'NONE',
@@ -46,13 +40,6 @@ export class Product {
     name: 'sale_type',
   })
   saleType: SaleType;
-
-  @Column({
-    type: 'enum',
-    enum: InventoryType,
-    name: 'inventory_type',
-  })
-  inventoryType: InventoryType;
 
   @Column({ type: 'decimal', precision: 10, scale: 2 })
   price: number;
@@ -100,9 +87,6 @@ export class Product {
 
   @Column({ default: true, name: 'is_active' })
   isActive: boolean;
-
-  @Column({ default: false, name: 'track_inventory' })
-  trackInventory: boolean;
 
   @Column({ type: 'uuid', name: 'category_id' })
   categoryId: string;

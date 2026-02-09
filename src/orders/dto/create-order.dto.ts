@@ -5,6 +5,7 @@ import {
   IsUUID,
   IsEmail,
   IsDateString,
+  IsInt,
   Min,
   IsArray,
   ValidateNested,
@@ -27,6 +28,11 @@ export class CreateOrderItemDto {
   quantity: number;
 
   @IsOptional()
+  @IsInt()
+  @Min(1)
+  pieces?: number;
+
+  @IsOptional()
   @IsNumber()
   @Min(0)
   discount?: number;
@@ -38,6 +44,9 @@ export class CreateOrderItemDto {
 }
 
 export class CreateOrderDto {
+  @IsUUID()
+  customerId: string;
+
   @IsString()
   @MaxLength(200)
   customerName: string;

@@ -8,7 +8,6 @@ import { Repository, DataSource, Between } from 'typeorm';
 import { Order, OrderStatus } from './entities/order.entity';
 import { OrderItem } from './entities/order-item.entity';
 import { Product } from '../products/entities/product.entity';
-import { ProductBatch } from '../product-batches/entities/product-batch.entity';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 
@@ -21,8 +20,6 @@ export class OrdersService {
     private readonly orderItemRepository: Repository<OrderItem>,
     @InjectRepository(Product)
     private readonly productRepository: Repository<Product>,
-    @InjectRepository(ProductBatch)
-    private readonly productBatchRepository: Repository<ProductBatch>,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -81,62 +78,20 @@ export class OrdersService {
           );
         }
 
-        // Validate batch if provided (for VACUUM_PACKED products)
-        let batchId: string | undefined;
-        let unitPrice = Number(product.price);
-        
-        if (itemDto.batchId) {
-          const batch = await manager.findOne(ProductBatch, {
-            where: { id: itemDto.batchId },
-          });
-
-          if (!batch) {
-            throw new NotFoundException(
-              `Batch with ID ${itemDto.batchId} not found`,
-            );
-          }
-
-          if (batch.productId !== product.id) {
-            throw new BadRequestException(
-              `Batch ${batch.batchNumber} does not belong to product ${product.name}`,
-            );
-          }
-
-          if (batch.isSold) {
-            throw new BadRequestException(
-              `Batch ${batch.batchNumber} is already sold`,
-            );
-          }
-
-          // Check if batch is already reserved in another order
-          const existingOrderItem = await manager.findOne(OrderItem, {
-            where: { batchId: batch.id },
-            relations: ['order'],
-          });
-
-          if (existingOrderItem && 
-              existingOrderItem.order.status !== OrderStatus.CANCELLED &&
-              existingOrderItem.order.status !== OrderStatus.DELIVERED) {
-            throw new BadRequestException(
-              `Batch ${batch.batchNumber} is already reserved in order ${existingOrderItem.order.orderNumber}`,
-            );
-          }
-
-          batchId = batch.id;
-          unitPrice = Number(batch.unitPrice);
-        }
+        // VACUUM_PACKED and WEIGHT products are treated the same
+        const unitPrice = Number(product.price);
 
         // Calculate item totals
         const quantity = Number(itemDto.quantity);
-        const discount = Number(itemDto.discount || 0);
-        const itemSubtotal = unitPrice * quantity - discount;
+        const discount = Math.round(Number(itemDto.discount || 0));
+        const itemSubtotal = Math.round(unitPrice * quantity - discount);
 
         orderItems.push({
           productId: product.id,
-          batchId,
           productName: product.name,
           productSku: product.sku,
           quantity,
+          pieces: itemDto.pieces,
           unit: product.unit,
           unitPrice,
           discount,
@@ -147,10 +102,10 @@ export class OrdersService {
         subtotal += itemSubtotal;
       }
 
-      // 3. Calculate order totals
-      const orderDiscount = Number(createOrderDto.discount || 0);
-      const total = subtotal - orderDiscount;
-      const deposit = Number(createOrderDto.deposit || 0);
+      // 3. Calculate order totals (all rounded to integers)
+      const orderDiscount = Math.round(Number(createOrderDto.discount || 0));
+      const total = Math.round(subtotal - orderDiscount);
+      const deposit = Math.round(Number(createOrderDto.deposit || 0));
 
       if (deposit > total) {
         throw new BadRequestException('Deposit cannot exceed order total');
@@ -159,6 +114,7 @@ export class OrdersService {
       // 4. Create order
       const order = manager.create(Order, {
         orderNumber,
+        customerId: createOrderDto.customerId,
         customerName: createOrderDto.customerName,
         customerPhone: createOrderDto.customerPhone,
         customerEmail: createOrderDto.customerEmail,
@@ -166,7 +122,7 @@ export class OrdersService {
         discount: orderDiscount,
         total,
         deposit,
-        deliveryDate: new Date(createOrderDto.deliveryDate),
+        deliveryDate: createOrderDto.deliveryDate as any, // Pass string directly - PostgreSQL handles it correctly
         deliveryTime: createOrderDto.deliveryTime,
         notes: createOrderDto.notes,
         internalNotes: createOrderDto.internalNotes,
@@ -188,7 +144,7 @@ export class OrdersService {
       // Return order with items
       return await manager.findOne(Order, {
         where: { id: savedOrder.id },
-        relations: ['items', 'items.product', 'items.batch', 'creator'],
+        relations: ['items', 'items.product', 'creator'],
       });
     });
 
@@ -212,7 +168,6 @@ export class OrdersService {
       .createQueryBuilder('order')
       .leftJoinAndSelect('order.items', 'items')
       .leftJoinAndSelect('items.product', 'product')
-      .leftJoinAndSelect('items.batch', 'batch')
       .leftJoinAndSelect('order.creator', 'creator');
 
     if (status) {
@@ -245,7 +200,7 @@ export class OrdersService {
   async findOne(id: string): Promise<Order> {
     const order = await this.orderRepository.findOne({
       where: { id },
-      relations: ['items', 'items.product', 'items.batch', 'creator'],
+      relations: ['items', 'items.product', 'creator'],
     });
 
     if (!order) {
@@ -286,7 +241,7 @@ export class OrdersService {
       if (updateOrderDto.customerEmail)
         order.customerEmail = updateOrderDto.customerEmail;
       if (updateOrderDto.deliveryDate)
-        order.deliveryDate = new Date(updateOrderDto.deliveryDate);
+        order.deliveryDate = updateOrderDto.deliveryDate as any; // Pass string directly - PostgreSQL handles it correctly
       if (updateOrderDto.deliveryTime)
         order.deliveryTime = updateOrderDto.deliveryTime;
       if (updateOrderDto.notes !== undefined) order.notes = updateOrderDto.notes;
@@ -299,21 +254,12 @@ export class OrdersService {
 
       // Handle items update if provided
       if (updateOrderDto.items && updateOrderDto.items.length > 0) {
-        // 1. Get old batch IDs by querying directly (order.items is not loaded)
-        const oldItems = await manager.find(OrderItem, {
-          where: { orderId: order.id },
-        });
-        const oldBatchIds = oldItems
-          .filter((item) => item.batchId)
-          .map((item) => item.batchId as string);
-
-        // 2. Delete existing order items
+        // Delete existing order items
         await manager.delete(OrderItem, { orderId: order.id });
 
-        // 3. Create new order items
+        // Create new order items
         const newOrderItems: Partial<OrderItem>[] = [];
         let subtotal = 0;
-        const newBatchIds: string[] = [];
 
         for (const itemDto of updateOrderDto.items) {
           const product = await manager.findOne(Product, {
@@ -332,66 +278,15 @@ export class OrdersService {
             );
           }
 
-          let batchId: string | undefined;
-          let unitPrice = Number(product.price);
-
-          // Validate and reserve batch if provided
-          if (itemDto.batchId) {
-            const batch = await manager.findOne(ProductBatch, {
-              where: { id: itemDto.batchId },
-            });
-
-            if (!batch) {
-              throw new NotFoundException(
-                `Batch with ID ${itemDto.batchId} not found`,
-              );
-            }
-
-            if (batch.productId !== product.id) {
-              throw new BadRequestException(
-                `Batch ${batch.batchNumber} does not belong to product ${product.name}`,
-              );
-            }
-
-            if (batch.isSold) {
-              throw new BadRequestException(
-                `Batch ${batch.batchNumber} is already sold`,
-              );
-            }
-
-            // Check if batch is already reserved in another order (excluding current order)
-            const existingOrderItem = await manager.findOne(OrderItem, {
-              where: { batchId: batch.id },
-              relations: ['order'],
-            });
-
-            if (existingOrderItem && existingOrderItem.orderId !== order.id) {
-              const existingOrder = existingOrderItem.order;
-              // Only block if the other order is active (not delivered or cancelled)
-              if (
-                existingOrder.status !== OrderStatus.DELIVERED &&
-                existingOrder.status !== OrderStatus.CANCELLED
-              ) {
-                throw new BadRequestException(
-                  `Batch ${batch.batchNumber} is already reserved in order ${existingOrder.orderNumber}`,
-                );
-              }
-            }
-
-            batchId = batch.id;
-            unitPrice = Number(batch.unitPrice);
-            newBatchIds.push(batch.id);
-          }
-
+          const unitPrice = Number(product.price);
           const quantity = itemDto.quantity;
-          const discount = itemDto.discount || 0;
-          const itemSubtotal = unitPrice * quantity - discount;
+          const discount = Math.round(itemDto.discount || 0);
+          const itemSubtotal = Math.round(unitPrice * quantity - discount);
 
           subtotal += itemSubtotal;
 
           newOrderItems.push({
             productId: product.id,
-            batchId,
             productName: product.name,
             productSku: product.sku,
             quantity,
@@ -403,7 +298,7 @@ export class OrdersService {
           } as Partial<OrderItem>);
         }
 
-        // 4. Save new items
+        // Save new items
         for (const itemData of newOrderItems) {
           const orderItem = manager.create(OrderItem, {
             ...itemData,
@@ -412,23 +307,11 @@ export class OrdersService {
           await manager.save(OrderItem, orderItem);
         }
 
-        // 5. Release old batches that are no longer in the order
-        const batchesToRelease = oldBatchIds.filter(
-          (id) => !newBatchIds.includes(id),
-        );
-        
-        if (batchesToRelease.length > 0) {
-          // Note: We don't actually "release" batches here because they're not marked
-          // as reserved during order creation. Batches are only marked as sold when
-          // the order is delivered or when sold through POS.
-          // This is just for future reference if we implement a reservation system.
-        }
-
-        // 6. Update order totals
-        const orderDiscount = updateOrderDto.discount || order.discount || 0;
-        order.subtotal = subtotal;
+        // Update order totals (all rounded to integers)
+        const orderDiscount = Math.round(updateOrderDto.discount || order.discount || 0);
+        order.subtotal = Math.round(subtotal);
         order.discount = orderDiscount;
-        order.total = subtotal - orderDiscount;
+        order.total = Math.round(subtotal - orderDiscount);
       }
 
       // Handle status changes
@@ -448,7 +331,7 @@ export class OrdersService {
       // Return updated order with relations
       const updatedOrder = await manager.findOne(Order, {
         where: { id: order.id },
-        relations: ['items', 'items.product', 'items.batch', 'creator'],
+        relations: ['items', 'items.product', 'creator'],
       });
 
       if (!updatedOrder) {
@@ -497,13 +380,13 @@ export class OrdersService {
 
   /**
    * Mark order as delivered (READY -> DELIVERED)
-   * This also handles stock deduction and batch marking if no sale was made
+   * This also handles stock deduction if no sale was made
    */
   async markAsDelivered(id: string): Promise<Order> {
     return await this.dataSource.transaction(async (manager) => {
       const order = await manager.findOne(Order, {
         where: { id },
-        relations: ['items', 'items.product', 'items.batch'],
+        relations: ['items', 'items.product'],
       });
 
       if (!order) {
@@ -519,16 +402,8 @@ export class OrdersService {
       // If order was not paid through POS (no saleId), we need to handle stock
       if (!order.saleId) {
         for (const item of order.items) {
-          // If item has a batch, mark it as sold
-          if (item.batchId) {
-            await manager.update(
-              ProductBatch,
-              { id: item.batchId },
-              { isSold: true },
-            );
-          }
-          // If product tracks inventory, deduct stock
-          else if (item.product.trackInventory) {
+          // Only track stock for UNIT products
+          if (item.product.saleType === 'UNIT') {
             const currentStock = Number(item.product.stockQuantity);
             const quantity = Number(item.quantity);
             const newStock = currentStock - quantity;

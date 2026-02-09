@@ -2,13 +2,16 @@
  * SEED DE PRODUCCIÓN - BUTCHER LILIETH
  * 
  * Este seeder crea:
- * - 7 categorías de productos
+ * - 6 categorías de productos (Cortes Tradicionales, Cortes Parrilleros, Elaborados, Pollo, Cerdo, Al Vacío)
  * - 2 terminales (Caja 1 y Caja 2)
  * - 4 usuarios administradores
  * - Productos desde Excel (Merchandise - copia.xls)
  * 
- * IMPORTANTE: Este seed está diseñado para producción.
- * NO crea ventas de prueba ni sesiones de caja de prueba.
+ * IMPORTANTE: 
+ * - Este seed está diseñado para producción.
+ * - NO crea ventas de prueba ni sesiones de caja de prueba.
+ * - TODOS los productos son pesados (WEIGHT) y se venden por kg.
+ * - "Al Vacío" son productos pesados normales, NO son lotes.
  */
 
 import { NestFactory } from '@nestjs/core';
@@ -20,7 +23,6 @@ import { TerminalsService } from '../terminals/terminals.service';
 import { UserRole } from '../users/entities/user.entity';
 import {
   SaleType,
-  InventoryType,
   BarcodeType,
 } from '../products/entities/product.entity';
 import * as XLSX from 'xlsx';
@@ -45,26 +47,26 @@ async function seedProduction() {
     
     const categoryMap = new Map();
 
-    const abarrotes = await categoriesService.create({
-      name: 'Abarrotes',
-      description: 'Productos de abarrotes y consumo general',
+    const cortesTradicionales = await categoriesService.create({
+      name: 'Cortes Tradicionales',
+      description: 'Cortes tradicionales de carne',
     });
-    categoryMap.set('Abarrotes', abarrotes.id);
-    console.log('  ✅ Abarrotes');
+    categoryMap.set('Cortes Tradicionales', cortesTradicionales.id);
+    console.log('  ✅ Cortes Tradicionales');
 
-    const res = await categoriesService.create({
-      name: 'Res',
-      description: 'Cortes y productos de carne de res',
+    const cortesParrilleros = await categoriesService.create({
+      name: 'Cortes Parrilleros',
+      description: 'Cortes especiales para parrilla',
     });
-    categoryMap.set('Res', res.id);
-    console.log('  ✅ Res');
+    categoryMap.set('Cortes Parrilleros', cortesParrilleros.id);
+    console.log('  ✅ Cortes Parrilleros');
 
-    const cerdo = await categoriesService.create({
-      name: 'Cerdo',
-      description: 'Cortes y productos de carne de cerdo',
+    const elaborados = await categoriesService.create({
+      name: 'Elaborados',
+      description: 'Productos elaborados y procesados',
     });
-    categoryMap.set('Cerdo', cerdo.id);
-    console.log('  ✅ Cerdo');
+    categoryMap.set('Elaborados', elaborados.id);
+    console.log('  ✅ Elaborados');
 
     const pollo = await categoriesService.create({
       name: 'Pollo',
@@ -73,30 +75,23 @@ async function seedProduction() {
     categoryMap.set('Pollo', pollo.id);
     console.log('  ✅ Pollo');
 
+    const cerdo = await categoriesService.create({
+      name: 'Cerdo',
+      description: 'Cortes y productos de carne de cerdo',
+    });
+    categoryMap.set('Cerdo', cerdo.id);
+    console.log('  ✅ Cerdo');
+
     const alVacio = await categoriesService.create({
       name: 'Al Vacío',
-      description: 'Productos empacados al vacío con peso variable',
+      description: 'Productos empacados al vacío (pesados por kg)',
     });
     categoryMap.set('Al Vacío', alVacio.id);
     categoryMap.set('Al Vacio', alVacio.id); // Variante sin tilde
     categoryMap.set('Al vacío', alVacio.id); // Variante lowercase
     console.log('  ✅ Al Vacío');
 
-    const embutidos = await categoriesService.create({
-      name: 'Embutidos',
-      description: 'Embutidos y productos procesados',
-    });
-    categoryMap.set('Embutidos', embutidos.id);
-    console.log('  ✅ Embutidos');
-
-    const pescado = await categoriesService.create({
-      name: 'Pescado',
-      description: 'Productos de pescado y mariscos',
-    });
-    categoryMap.set('Pescado', pescado.id);
-    console.log('  ✅ Pescado');
-
-    console.log('\n✅ 7 categorías creadas exitosamente\n');
+    console.log('\n✅ 6 categorías creadas exitosamente\n');
 
     // ==========================================
     // 2. CREAR TERMINALES
@@ -239,37 +234,26 @@ async function seedProduction() {
       }
 
       try {
-        // Determinar tipo de producto según categoría
-        const isVacuumPacked = categoria === 'Al Vacío' || categoria === 'Al Vacio' || categoria === 'Al vacío';
-
+        // TODOS los productos son pesados (WEIGHT) en balanza
+        // Ya no hay diferencia entre "Al Vacío" y otros productos pesados
         const productData: any = {
           name: productName,
           barcode: barcode, // 6 dígitos
           barcodeType: BarcodeType.WEIGHT_EMBEDDED, // Todos son de balanza
           categoryId: categoryId,
+          saleType: SaleType.WEIGHT, // TODOS son pesados
+          unit: 'kg', // TODOS se venden por kg
           price: precio,
           taxRate: 0,
           isActive: true,
-          trackInventory: false, // Los productos pesados y al vacío no manejan stock tradicional
         };
-
-        if (isVacuumPacked) {
-          // Productos AL VACÍO: UNIT + VACUUM_PACKED
-          productData.saleType = SaleType.UNIT;
-          productData.inventoryType = InventoryType.VACUUM_PACKED;
-          productData.unit = 'paquete';
-        } else {
-          // Productos PESADOS normales: WEIGHT + WEIGHT
-          productData.saleType = SaleType.WEIGHT;
-          productData.inventoryType = InventoryType.WEIGHT;
-          productData.unit = 'kg';
-        }
 
         await productsService.create(productData);
         console.log(`  ✅ ${productName} (${barcode}) - ${categoria} - Bs ${precio}`);
         created++;
       } catch (error) {
-        console.log(`  ❌ ERROR al crear ${productName}: ${error.message}`);
+        const message = error instanceof Error ? error.message : String(error);
+        console.log(`  ❌ ERROR al crear ${productName}: ${message}`);
         errors++;
       }
     }
@@ -287,7 +271,7 @@ async function seedProduction() {
     console.log('\n================================================');
     console.log('🎉 SEED DE PRODUCCIÓN COMPLETADO EXITOSAMENTE');
     console.log('================================================\n');
-    console.log('✅ Categorías: 7');
+    console.log('✅ Categorías: 6');
     console.log('✅ Terminales: 2');
     console.log('✅ Usuarios Admin: 4');
     console.log(`✅ Productos: ${created}\n`);
@@ -301,8 +285,10 @@ async function seedProduction() {
     console.log('  - Caja 2 (Carnicería)\n');
 
   } catch (error) {
-    console.error('\n❌ ERROR FATAL EN SEED:', error.message);
-    console.error(error.stack);
+    const message = error instanceof Error ? error.message : String(error);
+    const stack = error instanceof Error ? error.stack : '';
+    console.error('\n❌ ERROR FATAL EN SEED:', message);
+    console.error(stack);
   }
 
   await app.close();

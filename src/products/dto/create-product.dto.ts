@@ -11,7 +11,6 @@ import {
 } from 'class-validator';
 import {
   SaleType,
-  InventoryType,
   BarcodeType,
 } from '../entities/product.entity';
 
@@ -29,9 +28,6 @@ export class CreateProductDto {
 
   @IsEnum(SaleType)
   saleType: SaleType;
-
-  @IsEnum(InventoryType)
-  inventoryType: InventoryType;
 
   @IsNumber()
   @Min(0)

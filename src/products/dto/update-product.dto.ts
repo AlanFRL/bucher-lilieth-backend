@@ -10,7 +10,6 @@ import {
 } from 'class-validator';
 import {
   SaleType,
-  InventoryType,
   BarcodeType,
 } from '../entities/product.entity';
 
@@ -29,10 +28,6 @@ export class UpdateProductDto {
   @IsEnum(SaleType)
   @IsOptional()
   saleType?: SaleType;
-
-  @IsEnum(InventoryType)
-  @IsOptional()
-  inventoryType?: InventoryType;
 
   @IsNumber()
   @IsOptional()

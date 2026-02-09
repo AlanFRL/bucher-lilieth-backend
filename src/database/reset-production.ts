@@ -57,7 +57,8 @@ async function resetProduction() {
     console.log('  - henry1234 / PIN: 1234');
     console.log('  - ario1234 / PIN: 1234\n');
   } catch (error) {
-    console.error('\n❌ ERROR durante el reset:', error.message);
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('\n❌ ERROR durante el reset:', message);
     process.exit(1);
   }
 }

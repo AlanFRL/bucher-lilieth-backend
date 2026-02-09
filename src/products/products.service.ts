@@ -228,8 +228,8 @@ export class ProductsService {
   async updateStock(id: string, quantity: number): Promise<Product> {
     const product = await this.findOne(id);
     
-    if (!product.trackInventory) {
-      throw new BadRequestException('Product does not track inventory');
+    if (product.saleType !== 'UNIT') {
+      throw new BadRequestException('Only UNIT products track inventory');
     }
 
     product.stockQuantity = quantity;
@@ -239,8 +239,8 @@ export class ProductsService {
   async adjustStock(id: string, adjustment: number): Promise<Product> {
     const product = await this.findOne(id);
     
-    if (!product.trackInventory) {
-      throw new BadRequestException('Product does not track inventory');
+    if (product.saleType !== 'UNIT') {
+      throw new BadRequestException('Only UNIT products track inventory');
     }
 
     product.stockQuantity = Number(product.stockQuantity) + adjustment;
