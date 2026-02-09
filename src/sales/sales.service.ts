@@ -11,6 +11,7 @@ import { SaleItem } from './entities/sale-item.entity';
 import { Product } from '../products/entities/product.entity';
 import { CashSession, CashSessionStatus } from '../cash-sessions/entities/cash-session.entity';
 import { User } from '../users/entities/user.entity';
+import { Order, OrderStatus } from '../orders/entities/order.entity';
 import { CreateSaleDto } from './dto/create-sale.dto';
 
 @Injectable()
@@ -24,6 +25,8 @@ export class SalesService {
     private readonly productRepository: Repository<Product>,
     @InjectRepository(CashSession)
     private readonly sessionRepository: Repository<CashSession>,
+    @InjectRepository(Order)
+    private readonly orderRepository: Repository<Order>,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -555,5 +558,81 @@ export class SalesService {
       topProducts,
       dailySales,
     };
+  }
+
+  /**
+   * Delete a sale (ADMIN only, current session only)
+   * Restores inventory and cleans up associated order
+   */
+  async remove(id: string, userId: string): Promise<void> {
+    return await this.dataSource.transaction(async (manager) => {
+      // 1. Find sale with items
+      const sale = await manager.findOne(Sale, {
+        where: { id },
+        relations: ['items', 'items.product'],
+      });
+
+      if (!sale) {
+        throw new NotFoundException(`Sale with ID ${id} not found`);
+      }
+
+      // 2. Verify sale belongs to user's current open session
+      const currentSession = await manager.findOne(CashSession, {
+        where: {
+          userId,
+          status: CashSessionStatus.OPEN,
+        },
+      });
+
+      if (!currentSession) {
+        throw new ForbiddenException('No open session found for current user');
+      }
+
+      if (sale.sessionId !== currentSession.id) {
+        throw new ForbiddenException(
+          'Cannot delete sales from other sessions. Only sales from current open session can be deleted.'
+        );
+      }
+
+      // 3. Restore inventory (for UNIT products)
+      for (const item of sale.items) {
+        const product = await manager.findOne(Product, {
+          where: { id: item.productId },
+        });
+
+        if (product && product.saleType === 'UNIT') {
+          product.stockQuantity = Number(product.stockQuantity || 0) + Number(item.quantity);
+          await manager.save(Product, product);
+        }
+      }
+
+      // 4. Clean up associated order (if exists)
+      if (sale.orderId) {
+        const order = await manager.findOne(Order, {
+          where: { id: sale.orderId },
+        });
+
+        if (order) {
+          order.saleId = null;
+          order.status = OrderStatus.READY; // Return to READY state
+          await manager.save(Order, order);
+        }
+      }
+
+      // 5. Recalculate session expected amount
+      const sessionSales = await manager.find(Sale, {
+        where: { sessionId: currentSession.id },
+      });
+
+      const newExpectedAmount = sessionSales
+        .filter((s) => s.id !== sale.id) // Exclude the sale being deleted
+        .reduce((sum, s) => sum + Number(s.total), 0);
+
+      currentSession.expectedAmount = newExpectedAmount;
+      await manager.save(CashSession, currentSession);
+
+      // 6. Delete sale (sale_items will be cascade deleted)
+      await manager.remove(Sale, sale);
+    });
   }
 }

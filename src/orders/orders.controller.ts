@@ -6,13 +6,19 @@ import {
   Patch,
   Param,
   Query,
+  Delete,
   UseGuards,
   Request,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import { OrdersService } from './orders.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { UserRole } from '../users/entities/user.entity';
 import { OrderStatus } from './entities/order.entity';
 
 @Controller('orders')
@@ -98,5 +104,16 @@ export class OrdersController {
   @Patch(':id/cancel')
   cancel(@Param('id') id: string, @Body('reason') reason: string) {
     return this.ordersService.cancel(id, reason);
+  }
+
+  /**
+   * Delete an order (ADMIN only)
+   */
+  @Delete(':id')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async remove(@Param('id') id: string, @Request() req) {
+    await this.ordersService.remove(id, req.user.id);
   }
 }

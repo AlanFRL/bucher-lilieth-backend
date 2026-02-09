@@ -5,9 +5,13 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, IsNull, Not } from 'typeorm';
+import { Repository, IsNull, Not, DataSource } from 'typeorm';
 import { CashSession, CashSessionStatus } from './entities/cash-session.entity';
 import { CashMovement, CashMovementType } from './entities/cash-movement.entity';
+import { Sale } from '../sales/entities/sale.entity';
+import { SaleItem } from '../sales/entities/sale-item.entity';
+import { Order, OrderStatus } from '../orders/entities/order.entity';
+import { Product } from '../products/entities/product.entity';
 import { OpenSessionDto } from './dto/open-session.dto';
 import { CloseSessionDto } from './dto/close-session.dto';
 import { CreateMovementDto } from './dto/create-movement.dto';
@@ -19,6 +23,13 @@ export class CashSessionsService {
     private readonly sessionRepository: Repository<CashSession>,
     @InjectRepository(CashMovement)
     private readonly movementRepository: Repository<CashMovement>,
+    @InjectRepository(Sale)
+    private readonly saleRepository: Repository<Sale>,
+    @InjectRepository(Order)
+    private readonly orderRepository: Repository<Order>,
+    @InjectRepository(Product)
+    private readonly productRepository: Repository<Product>,
+    private readonly dataSource: DataSource,
   ) {}
 
   /**
@@ -305,5 +316,89 @@ export class CashSessionsService {
         movementCount: movements.length,
       },
     };
+  }
+
+  /**
+   * Delete a closed session (ADMIN only)
+   * Deletes all sales, movements, restores inventory, and cleans up orders
+   */
+  async remove(id: string, userId: string): Promise<void> {
+    return await this.dataSource.transaction(async (manager) => {
+      // 1. Find session
+      const session = await manager.findOne(CashSession, {
+        where: { id },
+      });
+
+      if (!session) {
+        throw new NotFoundException(`Session with ID ${id} not found`);
+      }
+
+      // 2. Verify session is CLOSED
+      if (session.status !== CashSessionStatus.CLOSED) {
+        throw new BadRequestException(
+          'Cannot delete an open session. Close the session first.'
+        );
+      }
+
+      // 3. Verify it's not the user's current session
+      const currentSession = await manager.findOne(CashSession, {
+        where: {
+          userId,
+          status: CashSessionStatus.OPEN,
+        },
+      });
+
+      if (currentSession && currentSession.id === id) {
+        throw new BadRequestException(
+          'Cannot delete your current open session'
+        );
+      }
+
+      // 4. Get all sales from this session
+      const sales = await manager.find(Sale, {
+        where: { sessionId: id },
+        relations: ['items', 'items.product'],
+      });
+
+      // 5. For each sale: restore inventory and clean up orders
+      for (const sale of sales) {
+        // Restore inventory for UNIT products
+        for (const item of sale.items) {
+          const product = await manager.findOne(Product, {
+            where: { id: item.productId },
+          });
+
+          if (product && product.saleType === 'UNIT') {
+            product.stockQuantity = Number(product.stockQuantity || 0) + Number(item.quantity);
+            await manager.save(Product, product);
+          }
+        }
+
+        // Clean up associated order
+        if (sale.orderId) {
+          const order = await manager.findOne(Order, {
+            where: { id: sale.orderId },
+          });
+
+          if (order) {
+            order.saleId = null;
+            order.status = OrderStatus.READY;
+            await manager.save(Order, order);
+          }
+        }
+
+        // Delete sale (sale_items will be cascade deleted)
+        await manager.remove(Sale, sale);
+      }
+
+      // 6. Delete all cash movements
+      const movements = await manager.find(CashMovement, {
+        where: { sessionId: id },
+      });
+      await manager.remove(CashMovement, movements);
+
+      // 7. Delete the session itself
+      await manager.remove(CashSession, session);
+    });
   }
 }

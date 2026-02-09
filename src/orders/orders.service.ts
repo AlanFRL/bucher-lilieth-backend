@@ -2,12 +2,14 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, Between } from 'typeorm';
 import { Order, OrderStatus } from './entities/order.entity';
 import { OrderItem } from './entities/order-item.entity';
 import { Product } from '../products/entities/product.entity';
+import { CashSession, CashSessionStatus } from '../cash-sessions/entities/cash-session.entity';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 
@@ -20,6 +22,8 @@ export class OrdersService {
     private readonly orderItemRepository: Repository<OrderItem>,
     @InjectRepository(Product)
     private readonly productRepository: Repository<Product>,
+    @InjectRepository(CashSession)
+    private readonly cashSessionRepository: Repository<CashSession>,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -462,5 +466,53 @@ export class OrdersService {
     };
 
     return stats;
+  }
+
+  /**
+   * Delete an order (ADMIN only, current session only, no sale associated)
+   */
+  async remove(id: string, userId: string): Promise<void> {
+    // 1. Find order with items
+    const order = await this.orderRepository.findOne({
+      where: { id },
+      relations: ['items'],
+    });
+
+    if (!order) {
+      throw new NotFoundException(`Order with ID ${id} not found`);
+    }
+
+    // 2. Check if order has an associated sale
+    if (order.saleId) {
+      throw new BadRequestException(
+        `Cannot delete order with associated sale. ` +
+        `Please delete sale ${order.saleId.slice(-8)} first.`
+      );
+    }
+
+    // 3. Verify order belongs to user's current open session
+    const currentSession = await this.cashSessionRepository.findOne({
+      where: {
+        userId,
+        status: CashSessionStatus.OPEN,
+      },
+    });
+
+    if (!currentSession) {
+      throw new ForbiddenException('No open session found for current user');
+    }
+
+    // Check if order was created during this session
+    const orderCreatedAt = new Date(order.createdAt);
+    const sessionOpenedAt = new Date(currentSession.openedAt);
+
+    if (orderCreatedAt < sessionOpenedAt) {
+      throw new ForbiddenException(
+        'Cannot delete orders from previous sessions'
+      );
+    }
+
+    // 4. Delete order (items will be cascade deleted)
+    await this.orderRepository.remove(order);
   }
 }

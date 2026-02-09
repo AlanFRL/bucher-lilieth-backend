@@ -6,12 +6,18 @@ import {
   Param,
   Patch,
   Query,
+  Delete,
   UseGuards,
   Request,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import { SalesService } from './sales.service';
 import { CreateSaleDto } from './dto/create-sale.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { UserRole } from '../users/entities/user.entity';
 
 @Controller('sales')
 @UseGuards(JwtAuthGuard)
@@ -105,5 +111,17 @@ export class SalesController {
   @Patch(':id/cancel')
   cancel(@Param('id') id: string, @Body('reason') reason: string) {
     return this.salesService.cancel(id, reason);
+  }
+
+  /**
+   * Delete a sale (ADMIN only, current session only)
+   * Restores inventory and cleans up associated order
+   */
+  @Delete(':id')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async remove(@Param('id') id: string, @Request() req) {
+    await this.salesService.remove(id, req.user.id);
   }
 }
