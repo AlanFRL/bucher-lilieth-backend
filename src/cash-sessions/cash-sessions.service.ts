@@ -381,7 +381,7 @@ export class CashSessionsService {
           });
 
           if (order) {
-            order.saleId = null;
+            order.saleId = undefined;
             order.status = OrderStatus.READY;
             await manager.save(Order, order);
           }

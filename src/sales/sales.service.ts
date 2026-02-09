@@ -613,7 +613,7 @@ export class SalesService {
         });
 
         if (order) {
-          order.saleId = null;
+          order.saleId = undefined;
           order.status = OrderStatus.READY; // Return to READY state
           await manager.save(Order, order);
         }
