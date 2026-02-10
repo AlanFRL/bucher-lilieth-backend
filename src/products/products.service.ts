@@ -252,6 +252,34 @@ export class ProductsService {
     return this.productsRepository.save(product);
   }
 
+  async updateDiscount(
+    id: string,
+    updateDiscountDto: { discountPrice?: number; discountActive: boolean },
+  ): Promise<Product> {
+    const product = await this.findOne(id);
+
+    // Validar que el precio de descuento no sea mayor al precio normal
+    if (
+      updateDiscountDto.discountPrice &&
+      updateDiscountDto.discountPrice >= product.price
+    ) {
+      throw new BadRequestException(
+        'El precio de descuento debe ser menor al precio normal',
+      );
+    }
+
+    // Actualizar campos de descuento
+    product.discountPrice = updateDiscountDto.discountPrice;
+    product.discountActive = updateDiscountDto.discountActive;
+
+    // Si se desactiva el descuento, limpiar el precio de descuento
+    if (!updateDiscountDto.discountActive) {
+      product.discountPrice = undefined;
+    }
+
+    return this.productsRepository.save(product);
+  }
+
   async deactivate(id: string): Promise<void> {
     const product = await this.findOne(id);
     product.isActive = false;

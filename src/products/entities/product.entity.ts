@@ -88,6 +88,18 @@ export class Product {
   @Column({ default: true, name: 'is_active' })
   isActive: boolean;
 
+  @Column({
+    type: 'decimal',
+    precision: 10,
+    scale: 2,
+    nullable: true,
+    name: 'discount_price',
+  })
+  discountPrice?: number;
+
+  @Column({ default: false, name: 'discount_active' })
+  discountActive: boolean;
+
   @Column({ type: 'uuid', name: 'category_id' })
   categoryId: string;
 

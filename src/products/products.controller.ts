@@ -12,6 +12,7 @@ import {
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { UpdateDiscountDto } from './dto/update-discount.dto';
 
 @Controller('products')
 export class ProductsController {
@@ -69,6 +70,14 @@ export class ProductsController {
     @Body() body: { adjustment: number },
   ) {
     return this.productsService.adjustStock(id, body.adjustment);
+  }
+
+  @Patch(':id/discount')
+  updateDiscount(
+    @Param('id') id: string,
+    @Body() updateDiscountDto: UpdateDiscountDto,
+  ) {
+    return this.productsService.updateDiscount(id, updateDiscountDto);
   }
 
   @Delete(':id')
