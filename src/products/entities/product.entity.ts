@@ -41,7 +41,16 @@ export class Product {
   })
   saleType: SaleType;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2 })
+  @Column({
+    type: 'decimal',
+    precision: 10,
+    scale: 2,
+    name: 'price',
+    transformer: {
+      to: (value) => value,
+      from: (value) => (value ? parseFloat(value) : 0),
+    },
+  })
   price: number;
 
   @Column({
@@ -50,6 +59,10 @@ export class Product {
     scale: 2,
     nullable: true,
     name: 'cost_price',
+    transformer: {
+      to: (value) => value,
+      from: (value) => (value ? parseFloat(value) : null),
+    },
   })
   costPrice?: number;
 
@@ -70,6 +83,10 @@ export class Product {
     scale: 3,
     default: 0,
     name: 'stock_quantity',
+    transformer: {
+      to: (value) => value,
+      from: (value) => (value ? parseFloat(value) : 0),
+    },
   })
   stockQuantity: number;
 
@@ -79,6 +96,10 @@ export class Product {
     scale: 3,
     default: 0,
     name: 'min_stock',
+    transformer: {
+      to: (value) => value,
+      from: (value) => (value ? parseFloat(value) : 0),
+    },
   })
   minStock: number;
 
@@ -94,11 +115,15 @@ export class Product {
     scale: 2,
     nullable: true,
     name: 'discount_price',
+    transformer: {
+      to: (value) => value,
+      from: (value) => value ? parseFloat(value) : null,
+    },
   })
   discountPrice?: number;
 
   @Column({ default: false, name: 'discount_active' })
-  discountActive: boolean;
+  discountActive!: boolean;
 
   @Column({ type: 'uuid', name: 'category_id' })
   categoryId: string;

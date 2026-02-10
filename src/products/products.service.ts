@@ -163,7 +163,18 @@ export class ProductsService {
       queryBuilder.andWhere('product.categoryId = :categoryId', { categoryId });
     }
 
-    return queryBuilder.orderBy('product.name', 'ASC').getMany();
+    const products = await queryBuilder.orderBy('product.name', 'ASC').getMany();
+    
+    // Log temporal para debug
+    if (products.length > 0) {
+      console.log('🔍 Primer producto con descuento:', {
+        name: products[0].name,
+        discountPrice: products[0].discountPrice,
+        discountActive: products[0].discountActive,
+      });
+    }
+    
+    return products;
   }
 
   async findOne(id: string): Promise<Product> {
