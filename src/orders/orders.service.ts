@@ -171,56 +171,70 @@ export class OrdersService {
     endDate?: Date,
     page?: number,
     limit?: number,
-  ): Promise<{ data: Order[]; total: number; page: number; limit: number; totalPages: number } | Order[]> {
-    const queryBuilder = this.orderRepository
-      .createQueryBuilder('order')
-      .leftJoinAndSelect('order.items', 'items')
-      .leftJoinAndSelect('items.product', 'product')
-      .leftJoinAndSelect('order.creator', 'creator');
+  ) {
+    try {
+      console.log('🔍 findAll called with:', { status, customerName, startDate, endDate, page, limit });
+      
+      const queryBuilder = this.orderRepository
+        .createQueryBuilder('order')
+        .leftJoinAndSelect('order.items', 'items')
+        .leftJoinAndSelect('items.product', 'product')
+        .leftJoinAndSelect('order.creator', 'creator');
 
-    if (status) {
-      queryBuilder.andWhere('order.status = :status', { status });
+      if (status) {
+        queryBuilder.andWhere('order.status = :status', { status });
+      }
+
+      if (customerName) {
+        queryBuilder.andWhere('order.customer_name ILIKE :customerName', {
+          customerName: `%${customerName}%`,
+        });
+      }
+
+      if (startDate && endDate) {
+        queryBuilder.andWhere('order.delivery_date BETWEEN :startDate AND :endDate', {
+          startDate,
+          endDate,
+        });
+      } else if (startDate) {
+        queryBuilder.andWhere('order.delivery_date >= :startDate', { startDate });
+      } else if (endDate) {
+        queryBuilder.andWhere('order.delivery_date <= :endDate', { endDate });
+      }
+
+      // Order by created_at DESC (most recent first)
+      queryBuilder.orderBy('order.created_at', 'DESC');
+
+      // If pagination parameters are provided, return paginated result
+      if (page !== undefined && limit !== undefined && limit > 0) {
+        console.log('📄 Using pagination:', { page, limit, skip: (page - 1) * limit });
+        const skip = (page - 1) * limit;
+        queryBuilder.skip(skip).take(limit);
+
+        const [data, total] = await queryBuilder.getManyAndCount();
+        const totalPages = Math.ceil(total / limit);
+
+        console.log('✅ Paginated result:', { dataCount: data.length, total, page, limit, totalPages });
+        
+        // Return plain object (not typed) to avoid serialization issues
+        return {
+          data,
+          total,
+          page,
+          limit,
+          totalPages,
+        };
+      }
+
+      // If no pagination, return all orders (backward compatibility)
+      console.log('📋 No pagination, returning all orders');
+      const orders = await queryBuilder.getMany();
+      console.log('✅ Non-paginated result:', { count: orders.length });
+      return orders;
+    } catch (error) {
+      console.error('❌ Error in findAll:', error);
+      throw error;
     }
-
-    if (customerName) {
-      queryBuilder.andWhere('order.customer_name ILIKE :customerName', {
-        customerName: `%${customerName}%`,
-      });
-    }
-
-    if (startDate && endDate) {
-      queryBuilder.andWhere('order.delivery_date BETWEEN :startDate AND :endDate', {
-        startDate,
-        endDate,
-      });
-    } else if (startDate) {
-      queryBuilder.andWhere('order.delivery_date >= :startDate', { startDate });
-    } else if (endDate) {
-      queryBuilder.andWhere('order.delivery_date <= :endDate', { endDate });
-    }
-
-    // Order by created_at DESC (most recent first)
-    queryBuilder.orderBy('order.created_at', 'DESC');
-
-    // If pagination parameters are provided, return paginated result
-    if (page !== undefined && limit !== undefined && limit > 0) {
-      const skip = (page - 1) * limit;
-      queryBuilder.skip(skip).take(limit);
-
-      const [data, total] = await queryBuilder.getManyAndCount();
-      const totalPages = Math.ceil(total / limit);
-
-      return {
-        data,
-        total,
-        page,
-        limit,
-        totalPages,
-      };
-    }
-
-    // If no pagination, return all orders (backward compatibility)
-    return queryBuilder.getMany();
   }
 
   /**
