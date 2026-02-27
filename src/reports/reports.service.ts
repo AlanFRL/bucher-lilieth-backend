@@ -338,7 +338,6 @@ export class ReportsService {
       pending: orders.filter((o) => o.status === OrderStatus.PENDING).length,
       ready: orders.filter((o) => o.status === OrderStatus.READY).length,
       delivered: orders.filter((o) => o.status === OrderStatus.DELIVERED).length,
-      cancelled: orders.filter((o) => o.status === OrderStatus.CANCELLED).length,
     };
 
     const totalRevenue = orders

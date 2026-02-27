@@ -342,27 +342,6 @@ export class OrdersService {
   }
 
   /**
-   * Cancel order
-   */
-  async cancel(id: string, reason: string): Promise<Order> {
-    const order = await this.findOne(id);
-
-    if (order.status === OrderStatus.DELIVERED) {
-      throw new BadRequestException('Cannot cancel delivered order');
-    }
-
-    if (order.status === OrderStatus.CANCELLED) {
-      throw new BadRequestException('Order is already cancelled');
-    }
-
-    order.status = OrderStatus.CANCELLED;
-    order.cancelledAt = new Date();
-    order.cancellationReason = reason;
-
-    return this.orderRepository.save(order);
-  }
-
-  /**
    * Mark order as ready (PENDING -> READY)
    */
   async markAsReady(id: string): Promise<Order> {
@@ -449,7 +428,6 @@ export class OrdersService {
       pending: orders.filter((o) => o.status === OrderStatus.PENDING).length,
       ready: orders.filter((o) => o.status === OrderStatus.READY).length,
       delivered: orders.filter((o) => o.status === OrderStatus.DELIVERED).length,
-      cancelled: orders.filter((o) => o.status === OrderStatus.CANCELLED).length,
       totalRevenue: orders
         .filter((o) => o.status === OrderStatus.DELIVERED)
         .reduce((sum, order) => sum + Number(order.total), 0),
@@ -525,7 +503,7 @@ export class OrdersService {
               where: { id: item.productId },
             });
             if (product) {
-              product.stockQuantity = Number(product.stockQuantity || 0) + Number(item.qty);
+              product.stockQuantity = Number(product.stockQuantity || 0) + Number(item.quantity);
               await manager.save(Product, product);
             }
           }
