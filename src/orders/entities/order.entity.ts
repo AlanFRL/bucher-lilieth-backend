@@ -16,7 +16,6 @@ export enum OrderStatus {
   PENDING = 'PENDING',
   READY = 'READY',
   DELIVERED = 'DELIVERED',
-  CANCELLED = 'CANCELLED',
 }
 
 @Entity('orders')
@@ -92,15 +91,9 @@ export class Order {
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;
 
-  @UpdateDateColumn({ name: 'updated_at' })
+  @UpdateDateColumn({name: 'updated_at' })
   updatedAt!: Date;
 
   @Column({ type: 'timestamp', nullable: true, name: 'delivered_at' })
   deliveredAt?: Date;
-
-  @Column({ type: 'timestamp', nullable: true, name: 'cancelled_at' })
-  cancelledAt?: Date;
-
-  @Column({ length: 500, nullable: true, name: 'cancellation_reason' })
-  cancellationReason?: string;
 }

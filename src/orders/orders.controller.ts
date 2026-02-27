@@ -99,14 +99,7 @@ export class OrdersController {
   }
 
   /**
-   * Cancel an order
-   */
-  @Patch(':id/cancel')
-  cancel(@Param('id') id: string, @Body('reason') reason: string) {
-    return this.ordersService.cancel(id, reason);
-  }
 
-  /**
    * Delete an order (ADMIN only)
    */
   @Delete(':id')

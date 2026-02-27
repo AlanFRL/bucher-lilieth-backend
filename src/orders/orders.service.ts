@@ -233,10 +233,6 @@ export class OrdersService {
         throw new BadRequestException('Cannot modify delivered order');
       }
 
-      if (order.status === OrderStatus.CANCELLED) {
-        throw new BadRequestException('Cannot modify cancelled order');
-      }
-
       // Update basic fields
       if (updateOrderDto.customerName)
         order.customerName = updateOrderDto.customerName;
@@ -324,9 +320,6 @@ export class OrdersService {
 
         if (updateOrderDto.status === OrderStatus.DELIVERED) {
           order.deliveredAt = new Date();
-        } else if (updateOrderDto.status === OrderStatus.CANCELLED) {
-          order.cancelledAt = new Date();
-          order.cancellationReason = updateOrderDto.cancellationReason;
         }
       }
 
