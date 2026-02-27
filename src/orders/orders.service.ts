@@ -520,8 +520,11 @@ export class OrdersService {
         throw new NotFoundException(`Order with ID ${id} not found`);
       }
 
+      console.log(`🗑️ Deleting order ${order.id}: saleId=${order.saleId}, status=${order.status}`);
+
       // 2. If order has associated sale, handle deletion with inventory restoration
       if (order.saleId) {
+        console.log(`  ℹ️ Order has saleId ${order.saleId}, checking if sale exists...`);
         // Find the sale with all its details
         const sale = await manager.findOne(Sale, {
           where: { id: order.saleId },
@@ -531,6 +534,7 @@ export class OrdersService {
         // Si la venta ya no existe, significa que fue eliminada previamente
         // En ese caso, solo eliminamos el pedido huérfano (el inventario ya fue restaurado)
         if (sale) {
+          console.log(`  ✅ Sale found, restoring inventory from sale items...`);
           // Restore inventory for each sale item (UNIT products only)
           for (const saleItem of sale.items) {
             const product = await manager.findOne(Product, {
@@ -557,7 +561,11 @@ export class OrdersService {
           
           // Delete sale
           await manager.remove(Sale, sale);
+        } else {
+          console.log(`  ⚠️ Sale ${order.saleId} not found (already deleted), skipping inventory restoration`);
         }
+      } else {
+        console.log(`  ℹ️ Order has NO saleId, checking if inventory should be restored...`);
       }
       
       // 3. Restore inventory if order had inventory deducted (READY or DELIVERED without sale)
@@ -566,6 +574,7 @@ export class OrdersService {
       if (!order.saleId && (order.status === OrderStatus.READY || order.status === OrderStatus.DELIVERED)) {
         console.log(`📦 Restoring inventory for order ${order.id} (status: ${order.status}, no sale)`);
         for (const item of order.items) {
+          console.log(`  🔍 Checking item: ${item.product.name}, saleType: ${item.product.saleType}`);
           if (item.product.saleType === 'UNIT') {
             const product = await manager.findOne(Product, {
               where: { id: item.productId },
@@ -578,6 +587,8 @@ export class OrdersService {
             }
           }
         }
+      } else {
+        console.log(`  ⏭️ Skipping inventory restoration: saleId=${order.saleId}, status=${order.status}`);
       }
 
       // 4. Delete order items
