@@ -108,7 +108,32 @@ export class OrdersService {
         subtotal += itemSubtotal;
       }
 
-      // 3. Calculate order totals (all rounded to integers)
+      // 3. Validate and update inventory (UNIT products only)
+      for (const itemDto of createOrderDto.items) {
+        const product = await manager.findOne(Product, {
+          where: { id: itemDto.productId },
+        });
+
+        if (!product) continue; // Already validated above
+
+        // Only track stock for UNIT products
+        if (product.saleType === 'UNIT') {
+          const currentStock = Number(product.stockQuantity || 0);
+          const quantity = Number(itemDto.quantity);
+
+          if (currentStock < quantity) {
+            throw new BadRequestException(
+              `Stock insuficiente para "${product.name}". Disponible: ${currentStock}, Requerido: ${quantity}`,
+            );
+          }
+
+          // Descontar stock al crear pedido
+          product.stockQuantity = currentStock - quantity;
+          await manager.save(Product, product);
+        }
+      }
+
+      // 4. Calculate order totals (all rounded to integers)
       const orderDiscount = Math.round(Number(createOrderDto.discount || 0));
       const total = Math.round(subtotal - orderDiscount);
       const deposit = Math.round(Number(createOrderDto.deposit || 0));
@@ -117,7 +142,7 @@ export class OrdersService {
         throw new BadRequestException('Deposit cannot exceed order total');
       }
 
-      // 4. Create order
+      // 5. Create order
       const order = manager.create(Order, {
         orderNumber,
         customerId: createOrderDto.customerId,
@@ -138,7 +163,7 @@ export class OrdersService {
 
       const savedOrder = await manager.save(Order, order);
 
-      // 5. Create order items
+      // 6. Create order items
       for (const itemData of orderItems) {
         const orderItem = manager.create(OrderItem, {
           ...itemData,

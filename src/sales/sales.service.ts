@@ -141,7 +141,9 @@ export class SalesService {
         subtotal += itemSubtotal;
 
         // Update product stock - Solo para productos UNIT
-        if (product.saleType === 'UNIT') {
+        // Si la venta está asociada a un pedido (orderId), NO descontar stock
+        // porque el pedido ya lo descontó al crearse
+        if (product.saleType === 'UNIT' && !createSaleDto.orderId) {
           product.stockQuantity = Number(product.stockQuantity || 0) - quantity;
           await manager.save(Product, product);
         }
@@ -595,14 +597,18 @@ export class SalesService {
       }
 
       // 3. Restore inventory (for UNIT products)
-      for (const item of sale.items) {
-        const product = await manager.findOne(Product, {
-          where: { id: item.productId },
-        });
+      // Si la venta tiene orderId asociado, NO restaurar stock porque el pedido
+      // hizo el descuento. Solo restaurar stock para ventas directas (sin pedido)
+      if (!sale.orderId) {
+        for (const item of sale.items) {
+          const product = await manager.findOne(Product, {
+            where: { id: item.productId },
+          });
 
-        if (product && product.saleType === 'UNIT') {
-          product.stockQuantity = Number(product.stockQuantity || 0) + Number(item.quantity);
-          await manager.save(Product, product);
+          if (product && product.saleType === 'UNIT') {
+            product.stockQuantity = Number(product.stockQuantity || 0) + Number(item.quantity);
+            await manager.save(Product, product);
+          }
         }
       }
 
