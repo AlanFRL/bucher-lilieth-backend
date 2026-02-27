@@ -222,12 +222,21 @@ export class SalesService {
         await manager.save(CashSession, session);
       }
 
-      // 8. If this sale is linked to an order, update the order's saleId
+      // 8. If this sale is linked to an order, update the order's saleId and status
       if (createSaleDto.orderId) {
-        await manager.query(
-          `UPDATE orders SET sale_id = $1, status = 'DELIVERED', delivered_at = CURRENT_TIMESTAMP WHERE id = $2`,
-          [savedSale.id, createSaleDto.orderId]
-        );
+        const order = await manager.findOne(Order, {
+          where: { id: createSaleDto.orderId },
+        });
+
+        if (order) {
+          order.saleId = savedSale.id;
+          order.status = OrderStatus.DELIVERED;
+          order.deliveredAt = new Date();
+          await manager.save(Order, order);
+          console.log(`✅ Order ${order.id} linked to sale ${savedSale.id} and marked as DELIVERED`);
+        } else {
+          console.warn(`⚠️ Order ${createSaleDto.orderId} not found when creating sale`);
+        }
       }
 
       // Return sale with items
@@ -615,15 +624,22 @@ export class SalesService {
 
       // 4. Clean up associated order (if exists)
       if (sale.orderId) {
+        console.log(`🔗 Sale has orderId: ${sale.orderId}, cleaning up order...`);
         const order = await manager.findOne(Order, {
           where: { id: sale.orderId },
         });
 
         if (order) {
+          console.log(`✅ Found order ${order.id}, cleaning saleId and setting status to READY`);
           order.saleId = undefined;
           order.status = OrderStatus.READY; // Return to READY state
           await manager.save(Order, order);
+          console.log(`✅ Order ${order.id} cleaned successfully`);
+        } else {
+          console.warn(`⚠️ Order ${sale.orderId} not found, skipping cleanup`);
         }
+      } else {
+        console.log('ℹ️ Sale does not have orderId, skipping order cleanup');
       }
 
       // 5. Recalculate session expected amount

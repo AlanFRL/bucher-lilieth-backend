@@ -528,37 +528,36 @@ export class OrdersService {
           relations: ['items', 'items.product', 'session'],
         });
 
-        if (!sale) {
-          throw new NotFoundException(`Associated sale ${order.saleId} not found`);
-        }
+        // Si la venta ya no existe, significa que fue eliminada previamente
+        // En ese caso, solo eliminamos el pedido huérfano (el inventario ya fue restaurado)
+        if (sale) {
+          // Restore inventory for each sale item (UNIT products only)
+          for (const saleItem of sale.items) {
+            const product = await manager.findOne(Product, {
+              where: { id: saleItem.productId },
+            });
 
-        // Restore inventory for each sale item (UNIT products only)
-        for (const saleItem of sale.items) {
-          const product = await manager.findOne(Product, {
-            where: { id: saleItem.productId },
-          });
-
-          if (product && product.saleType === 'UNIT') {
-            product.stockQuantity = Number(product.stockQuantity || 0) + Number(saleItem.quantity);
-            await manager.save(Product, product);
+            if (product && product.saleType === 'UNIT') {
+              product.stockQuantity = Number(product.stockQuantity || 0) + Number(saleItem.quantity);
+              await manager.save(Product, product);
+            }
           }
-        }
 
-        // Adjust session expectedAmount (only for CASH and MIXED payments)
-        if (sale.paymentMethod === PaymentMethod.CASH || 
-            sale.paymentMethod === PaymentMethod.MIXED) {
-          const cashAmount = Number(sale.cashAmount || 0) - Number(sale.changeAmount || 0);
-          const session = sale.session;
-          session.expectedAmount = Number(session.expectedAmount) - cashAmount;
-          await manager.save(CashSession, session);
-        }
+          // Adjust session expectedAmount (only for CASH and MIXED payments)
+          if (sale.paymentMethod === PaymentMethod.CASH || 
+              sale.paymentMethod === PaymentMethod.MIXED) {
+            const cashAmount = Number(sale.cashAmount || 0) - Number(sale.changeAmount || 0);
+            const session = sale.session;
+            session.expectedAmount = Number(session.expectedAmount) - cashAmount;
+            await manager.save(CashSession, session);
+          }
 
-        // Delete sale items first (cascade)
-        await manager.remove(SaleItem, sale.items);
-        
-        // Delete sale
-        await manager.remove(Sale, sale);
-      } else if (order.status === OrderStatus.DELIVERED) {
+          // Delete sale items first (cascade)
+          await manager.remove(SaleItem, sale.items);
+          
+          // Delete sale
+          await manager.remove(Sale, sale);
+        } else if (order.status === OrderStatus.DELIVERED) {
         // If order was delivered without sale, restore inventory that was deducted
         for (const item of order.items) {
           if (item.product.saleType === 'UNIT') {
