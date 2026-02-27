@@ -532,7 +532,7 @@ export class OrdersService {
         });
 
         // Si la venta ya no existe, significa que fue eliminada previamente
-        // En ese caso, solo eliminamos el pedido huérfano (el inventario ya fue restaurado)
+        // En ese caso, necesitamos restaurar el inventario antes de eliminar el pedido
         if (sale) {
           console.log(`  ✅ Sale found, restoring inventory from sale items...`);
           // Restore inventory for each sale item (UNIT products only)
@@ -562,7 +562,23 @@ export class OrdersService {
           // Delete sale
           await manager.remove(Sale, sale);
         } else {
-          console.log(`  ⚠️ Sale ${order.saleId} not found (already deleted), skipping inventory restoration`);
+          console.log(`  ⚠️ Sale ${order.saleId} not found (already deleted)`);
+          console.log(`  📦 Restoring inventory from order items instead...`);
+          
+          // If sale was deleted but order still has saleId, restore inventory from order
+          for (const item of order.items) {
+            if (item.product.saleType === 'UNIT') {
+              const product = await manager.findOne(Product, {
+                where: { id: item.productId },
+              });
+              if (product) {
+                const oldStock = Number(product.stockQuantity || 0);
+                product.stockQuantity = oldStock + Number(item.quantity);
+                await manager.save(Product, product);
+                console.log(`    ✅ ${item.product.name}: ${oldStock} + ${item.quantity} = ${product.stockQuantity}`);
+              }
+            }
+          }
         }
       } else {
         console.log(`  ℹ️ Order has NO saleId, checking if inventory should be restored...`);
