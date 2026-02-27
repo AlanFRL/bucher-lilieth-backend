@@ -202,13 +202,13 @@ export class OrdersService {
         queryBuilder.andWhere('order.delivery_date <= :endDate', { endDate });
       }
 
-      // Order by created_at DESC (most recent first)
-      queryBuilder.orderBy('order.created_at', 'DESC');
-
       // If pagination parameters are provided, return paginated result
       if (page !== undefined && limit !== undefined && limit > 0) {
         console.log('📄 Using pagination:', { page, limit, skip: (page - 1) * limit });
         const skip = (page - 1) * limit;
+        
+        // Order by createdAt DESC BEFORE skip/take (important for pagination)
+        queryBuilder.orderBy('order.createdAt', 'DESC');
         queryBuilder.skip(skip).take(limit);
 
         const [data, total] = await queryBuilder.getManyAndCount();
@@ -228,6 +228,7 @@ export class OrdersService {
 
       // If no pagination, return all orders (backward compatibility)
       console.log('📋 No pagination, returning all orders');
+      queryBuilder.orderBy('order.createdAt', 'DESC');
       const orders = await queryBuilder.getMany();
       console.log('✅ Non-paginated result:', { count: orders.length });
       return orders;
