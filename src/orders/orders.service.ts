@@ -241,6 +241,11 @@ export class OrdersService {
 
         console.log('✅ Paginated result:', { dataCount: data.length, total, page, limit, totalPages });
         
+        // Debug: log saleId of first order
+        if (data.length > 0) {
+          console.log(`  🔍 First order: id=${data[0].id}, saleId=${data[0].saleId}, status=${data[0].status}`);  
+        }
+        
         // Return plain object (not typed) to avoid serialization issues
         return {
           data,
@@ -256,6 +261,12 @@ export class OrdersService {
       queryBuilder.orderBy('order.createdAt', 'DESC');
       const orders = await queryBuilder.getMany();
       console.log('✅ Non-paginated result:', { count: orders.length });
+      
+      // Debug: log saleId of first order
+      if (orders.length > 0) {
+        console.log(`  🔍 First order: id=${orders[0].id}, saleId=${orders[0].saleId}, status=${orders[0].status}`);
+      }
+      
       return orders;
     } catch (error) {
       console.error('❌ Error in findAll:', error);
