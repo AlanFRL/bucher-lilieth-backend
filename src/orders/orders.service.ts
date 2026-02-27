@@ -162,14 +162,16 @@ export class OrdersService {
   }
 
   /**
-   * Find all orders with optional filters
+   * Find all orders with optional filters and pagination
    */
   async findAll(
     status?: OrderStatus,
     customerName?: string,
     startDate?: Date,
     endDate?: Date,
-  ): Promise<Order[]> {
+    page?: number,
+    limit?: number,
+  ): Promise<{ data: Order[]; total: number; page: number; limit: number; totalPages: number } | Order[]> {
     const queryBuilder = this.orderRepository
       .createQueryBuilder('order')
       .leftJoinAndSelect('order.items', 'items')
@@ -197,7 +199,28 @@ export class OrdersService {
       queryBuilder.andWhere('order.delivery_date <= :endDate', { endDate });
     }
 
-    return queryBuilder.orderBy('order.delivery_date', 'ASC').getMany();
+    // Order by created_at DESC (most recent first)
+    queryBuilder.orderBy('order.created_at', 'DESC');
+
+    // If pagination parameters are provided, return paginated result
+    if (page !== undefined && limit !== undefined && limit > 0) {
+      const skip = (page - 1) * limit;
+      queryBuilder.skip(skip).take(limit);
+
+      const [data, total] = await queryBuilder.getManyAndCount();
+      const totalPages = Math.ceil(total / limit);
+
+      return {
+        data,
+        total,
+        page,
+        limit,
+        totalPages,
+      };
+    }
+
+    // If no pagination, return all orders (backward compatibility)
+    return queryBuilder.getMany();
   }
 
   /**

@@ -43,12 +43,19 @@ export class OrdersController {
     @Query('customerName') customerName?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
+    const pageNum = page ? parseInt(page, 10) : undefined;
+    const limitNum = limit ? parseInt(limit, 10) : undefined;
+    
     return this.ordersService.findAll(
       status,
       customerName,
       startDate ? new Date(startDate) : undefined,
       endDate ? new Date(endDate) : undefined,
+      pageNum,
+      limitNum,
     );
   }
 
