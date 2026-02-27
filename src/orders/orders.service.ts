@@ -10,6 +10,8 @@ import { Order, OrderStatus } from './entities/order.entity';
 import { OrderItem } from './entities/order-item.entity';
 import { Product } from '../products/entities/product.entity';
 import { CashSession, CashSessionStatus } from '../cash-sessions/entities/cash-session.entity';
+import { Sale, PaymentMethod } from '../sales/entities/sale.entity';
+import { SaleItem } from '../sales/entities/sale-item.entity';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 
@@ -462,53 +464,79 @@ export class OrdersService {
   }
 
   /**
-   * Delete an order (ADMIN only, current session only, no sale associated)
+   * Delete an order (ADMIN only)
+   * If order has associated sale, it will be deleted along with inventory restoration
    */
   async remove(id: string, userId: string): Promise<void> {
-    // 1. Find order with items
-    const order = await this.orderRepository.findOne({
-      where: { id },
-      relations: ['items'],
-    });
+    return await this.dataSource.transaction(async (manager) => {
+      // 1. Find order with all relations
+      const order = await manager.findOne(Order, {
+        where: { id },
+        relations: ['items', 'items.product'],
+      });
 
-    if (!order) {
-      throw new NotFoundException(`Order with ID ${id} not found`);
-    }
-
-    // 2. Check if order has an associated sale
-    if (order.saleId) {
-      throw new BadRequestException(
-        `Cannot delete order with associated sale. ` +
-        `Please delete sale ${order.saleId.slice(-8)} first.`
-      );
-    }
-
-    // 3. Verify order belongs to user's current open session
-    // Exception: CANCELLED orders can be deleted from any session
-    const currentSession = await this.cashSessionRepository.findOne({
-      where: {
-        userId,
-        status: CashSessionStatus.OPEN,
-      },
-    });
-
-    if (!currentSession) {
-      throw new ForbiddenException('No open session found for current user');
-    }
-
-    // Check if order was created during this session (skip for CANCELLED orders)
-    if (order.status !== OrderStatus.CANCELLED) {
-      const orderCreatedAt = new Date(order.createdAt);
-      const sessionOpenedAt = new Date(currentSession.openedAt);
-
-      if (orderCreatedAt < sessionOpenedAt) {
-        throw new ForbiddenException(
-          'Cannot delete orders from previous sessions'
-        );
+      if (!order) {
+        throw new NotFoundException(`Order with ID ${id} not found`);
       }
-    }
 
-    // 4. Delete order (items will be cascade deleted)
-    await this.orderRepository.remove(order);
+      // 2. If order has associated sale, handle deletion with inventory restoration
+      if (order.saleId) {
+        // Find the sale with all its details
+        const sale = await manager.findOne(Sale, {
+          where: { id: order.saleId },
+          relations: ['items', 'items.product', 'session'],
+        });
+
+        if (!sale) {
+          throw new NotFoundException(`Associated sale ${order.saleId} not found`);
+        }
+
+        // Restore inventory for each sale item (UNIT products only)
+        for (const saleItem of sale.items) {
+          const product = await manager.findOne(Product, {
+            where: { id: saleItem.productId },
+          });
+
+          if (product && product.saleType === 'UNIT') {
+            product.stockQuantity = Number(product.stockQuantity || 0) + Number(saleItem.quantity);
+            await manager.save(Product, product);
+          }
+        }
+
+        // Adjust session expectedAmount (only for CASH and MIXED payments)
+        if (sale.paymentMethod === PaymentMethod.CASH || 
+            sale.paymentMethod === PaymentMethod.MIXED) {
+          const cashAmount = Number(sale.cashAmount || 0) - Number(sale.changeAmount || 0);
+          const session = sale.session;
+          session.expectedAmount = Number(session.expectedAmount) - cashAmount;
+          await manager.save(CashSession, session);
+        }
+
+        // Delete sale items first (cascade)
+        await manager.remove(SaleItem, sale.items);
+        
+        // Delete sale
+        await manager.remove(Sale, sale);
+      } else if (order.status === OrderStatus.DELIVERED) {
+        // If order was delivered without sale, restore inventory that was deducted
+        for (const item of order.items) {
+          if (item.product.saleType === 'UNIT') {
+            const product = await manager.findOne(Product, {
+              where: { id: item.productId },
+            });
+            if (product) {
+              product.stockQuantity = Number(product.stockQuantity || 0) + Number(item.qty);
+              await manager.save(Product, product);
+            }
+          }
+        }
+      }
+
+      // 3. Delete order items
+      await manager.remove(OrderItem, order.items);
+
+      // 4. Delete order
+      await manager.remove(Order, order);
+    });
   }
 }
