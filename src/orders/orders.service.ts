@@ -557,7 +557,8 @@ export class OrdersService {
           
           // Delete sale
           await manager.remove(Sale, sale);
-        } else if (order.status === OrderStatus.DELIVERED) {
+        }
+      } else if (order.status === OrderStatus.DELIVERED) {
         // If order was delivered without sale, restore inventory that was deducted
         for (const item of order.items) {
           if (item.product.saleType === 'UNIT') {
