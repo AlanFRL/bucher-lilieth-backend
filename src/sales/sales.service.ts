@@ -631,10 +631,14 @@ export class SalesService {
 
         if (order) {
           console.log(`✅ Found order ${order.id}, cleaning saleId and setting status to READY`);
-          order.saleId = undefined;
-          order.status = OrderStatus.READY; // Return to READY state
-          await manager.save(Order, order);
-          console.log(`✅ Order ${order.id} cleaned successfully`);
+          
+          // Use manager.update() to ensure TypeORM executes the UPDATE
+          await manager.update(Order, 
+            { id: order.id }, 
+            { saleId: null, status: OrderStatus.READY }
+          );
+          
+          console.log(`✅ Order ${order.id} cleaned successfully (saleId set to null)`);
         } else {
           console.warn(`⚠️ Order ${sale.orderId} not found, skipping cleanup`);
         }
