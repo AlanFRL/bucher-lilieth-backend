@@ -558,25 +558,32 @@ export class OrdersService {
           // Delete sale
           await manager.remove(Sale, sale);
         }
-      } else if (order.status === OrderStatus.DELIVERED) {
-        // If order was delivered without sale, restore inventory that was deducted
+      }
+      
+      // 3. Restore inventory if order had inventory deducted (READY or DELIVERED without sale)
+      // Si el pedido NO tiene venta asociada pero tiene status READY o DELIVERED,
+      // significa que el inventario fue descontado al crear el pedido
+      if (!order.saleId && (order.status === OrderStatus.READY || order.status === OrderStatus.DELIVERED)) {
+        console.log(`📦 Restoring inventory for order ${order.id} (status: ${order.status}, no sale)`);
         for (const item of order.items) {
           if (item.product.saleType === 'UNIT') {
             const product = await manager.findOne(Product, {
               where: { id: item.productId },
             });
             if (product) {
-              product.stockQuantity = Number(product.stockQuantity || 0) + Number(item.quantity);
+              const oldStock = Number(product.stockQuantity || 0);
+              product.stockQuantity = oldStock + Number(item.quantity);
               await manager.save(Product, product);
+              console.log(`  ✅ ${item.product.name}: ${oldStock} + ${item.quantity} = ${product.stockQuantity}`);
             }
           }
         }
       }
 
-      // 3. Delete order items
+      // 4. Delete order items
       await manager.remove(OrderItem, order.items);
 
-      // 4. Delete order
+      // 5. Delete order
       await manager.remove(Order, order);
     });
   }
