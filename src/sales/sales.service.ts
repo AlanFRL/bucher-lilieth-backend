@@ -10,6 +10,7 @@ import { Sale, PaymentMethod, SaleStatus } from './entities/sale.entity';
 import { SaleItem } from './entities/sale-item.entity';
 import { Product } from '../products/entities/product.entity';
 import { CashSession, CashSessionStatus } from '../cash-sessions/entities/cash-session.entity';
+import { CashMovement } from '../cash-sessions/entities/cash-movement.entity';
 import { User } from '../users/entities/user.entity';
 import { Order, OrderStatus } from '../orders/entities/order.entity';
 import { CreateSaleDto } from './dto/create-sale.dto';
@@ -626,13 +627,31 @@ export class SalesService {
       }
 
       // 5. Recalculate session expected amount
+      // Fórmula: openingAmount + efectivo de ventas (CASH/MIXED) + movimientos
       const sessionSales = await manager.find(Sale, {
         where: { sessionId: currentSession.id },
       });
 
-      const newExpectedAmount = sessionSales
-        .filter((s) => s.id !== sale.id) // Exclude the sale being deleted
-        .reduce((sum, s) => sum + Number(s.total), 0);
+      const cashMovements = await manager.find(CashMovement, {
+        where: { sessionId: currentSession.id },
+      });
+
+      // Solo contar efectivo de ventas CASH y MIXED (cashAmount - changeAmount)
+      const cashFromSales = sessionSales
+        .filter((s) => s.id !== sale.id) // Excluir venta eliminada
+        .filter((s) => s.paymentMethod === PaymentMethod.CASH || s.paymentMethod === PaymentMethod.MIXED)
+        .reduce((sum, s) => sum + (Number(s.cashAmount || 0) - Number(s.changeAmount || 0)), 0);
+
+      // Sumar movimientos (depósitos - retiros)
+      const deposits = cashMovements
+        .filter((m) => m.type === 'DEPOSIT')
+        .reduce((sum, m) => sum + Number(m.amount), 0);
+      
+      const withdrawals = cashMovements
+        .filter((m) => m.type === 'WITHDRAWAL')
+        .reduce((sum, m) => sum + Number(m.amount), 0);
+
+      const newExpectedAmount = Number(currentSession.openingAmount) + cashFromSales + deposits - withdrawals;
 
       currentSession.expectedAmount = newExpectedAmount;
       await manager.save(CashSession, currentSession);
