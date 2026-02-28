@@ -632,14 +632,14 @@ export class SalesService {
         if (order) {
           console.log(`✅ Found order ${order.id}, cleaning saleId and setting status to READY`);
           
-          // Use QueryBuilder to set saleId to NULL explicitly
+          // Use QueryBuilder to set saleId to NULL explicitly and clear delivery timestamp
           await manager.createQueryBuilder()
             .update(Order)
-            .set({ saleId: null, status: OrderStatus.READY })
+            .set({ saleId: null, status: OrderStatus.READY, deliveredAt: null })
             .where("id = :id", { id: order.id })
             .execute();
           
-          console.log(`✅ Order ${order.id} cleaned successfully (saleId set to NULL)`);
+          console.log(`✅ Order ${order.id} cleaned successfully (saleId set to NULL, status READY, deliveredAt cleared)`);
         } else {
           console.warn(`⚠️ Order ${sale.orderId} not found, skipping cleanup`);
         }
