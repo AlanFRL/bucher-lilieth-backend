@@ -16,7 +16,7 @@ import { UsersModule } from '../users/users.module';
       useFactory: (configService: ConfigService) => ({
         secret: configService.get<string>('jwt.secret') || 'dev-secret-key',
         signOptions: {
-          expiresIn: '12h',
+          expiresIn: '24h', // Token válido por 24 horas (todo un día laboral)
         },
       }),
       inject: [ConfigService],
