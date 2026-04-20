@@ -236,6 +236,11 @@ export class ProductsService {
     // Ensure SKU never changes
     product.sku = product.sku;
 
+    // Update category relation correctly if provided
+    if (updateProductDto.categoryId) {
+      product.category = { id: updateProductDto.categoryId } as any;
+    }
+
     return this.productsRepository.save(product);
   }
 
