@@ -35,6 +35,11 @@ export class CreateOrderItemDto {
   @IsOptional()
   @IsNumber()
   @Min(0)
+  appliedUnitPrice?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
   discount?: number;
 
   @IsOptional()

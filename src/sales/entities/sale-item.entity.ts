@@ -74,6 +74,15 @@ export class SaleItem {
   })
   subtotal: number;
 
+  @Column({
+    type: 'decimal',
+    precision: 10,
+    scale: 2,
+    name: 'applied_unit_price',
+    nullable: true,
+  })
+  appliedUnitPrice?: number;
+
   // Optional field for weight-based products (WEIGHT, VACUUM_PACKED)
   @Column({
     type: 'decimal',

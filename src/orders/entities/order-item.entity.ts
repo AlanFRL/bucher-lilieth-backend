@@ -51,6 +51,9 @@ export class OrderItem {
   @Column({ type: 'decimal', precision: 10, scale: 2 })
   subtotal!: number;
 
+  @Column({ type: 'decimal', precision: 10, scale: 2, name: 'applied_unit_price', nullable: true })
+  appliedUnitPrice?: number;
+
   @Column({ type: 'text', nullable: true })
   notes?: string;
 }

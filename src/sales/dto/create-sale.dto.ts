@@ -32,6 +32,11 @@ export class CreateSaleItemDto {
   @IsOptional()
   @IsNumber()
   @Min(0)
+  appliedUnitPrice?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
   discount?: number;
 
   // Batch-specific fields (optional, for batch-tracked products)
