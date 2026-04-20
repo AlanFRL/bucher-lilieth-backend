@@ -146,11 +146,14 @@ export class ProductsService {
     // NONE type has no barcode, no validation needed
   }
 
-  async findAll(search?: string, categoryId?: string): Promise<Product[]> {
+  async findAll(search?: string, categoryId?: string, all?: boolean): Promise<Product[]> {
     const queryBuilder = this.productsRepository
       .createQueryBuilder('product')
       .leftJoinAndSelect('product.category', 'category')
-      .where('product.isActive = :isActive', { isActive: true });
+      .where('1=1');
+    if (!all) {
+      queryBuilder.andWhere('product.isActive = :isActive', { isActive: true });
+    }
 
     if (search) {
       queryBuilder.andWhere(
@@ -291,10 +294,15 @@ export class ProductsService {
     return this.productsRepository.save(product);
   }
 
-  async deactivate(id: string): Promise<void> {
+  async remove(id: string): Promise<void> {
     const product = await this.findOne(id);
-    product.isActive = false;
-    await this.productsRepository.save(product);
+    await this.productsRepository.remove(product);
+  }
+
+  async toggleActive(id: string): Promise<Product> {
+    const product = await this.findOne(id);
+    product.isActive = !product.isActive;
+    return this.productsRepository.save(product);
   }
 
   async getLowStock(): Promise<Product[]> {

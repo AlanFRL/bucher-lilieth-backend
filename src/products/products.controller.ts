@@ -27,8 +27,9 @@ export class ProductsController {
   findAll(
     @Query('search') search?: string,
     @Query('categoryId') categoryId?: string,
+    @Query('all') all?: string,
   ) {
-    return this.productsService.findAll(search, categoryId);
+    return this.productsService.findAll(search, categoryId, all === 'true');
   }
 
   @Get('low-stock')
@@ -81,7 +82,12 @@ export class ProductsController {
   }
 
   @Delete(':id')
-  deactivate(@Param('id') id: string) {
-    return this.productsService.deactivate(id);
+  remove(@Param('id') id: string) {
+    return this.productsService.remove(id);
+  }
+
+  @Patch(':id/toggle-active')
+  toggleActive(@Param('id') id: string) {
+    return this.productsService.toggleActive(id);
   }
 }
