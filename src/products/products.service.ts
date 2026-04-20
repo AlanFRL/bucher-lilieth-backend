@@ -180,9 +180,9 @@ export class ProductsService {
     return products;
   }
 
-  async findOne(id: string): Promise<Product> {
+  async findOne(id: string, includeInactive = false): Promise<Product> {
     const product = await this.productsRepository.findOne({
-      where: { id, isActive: true },
+      where: includeInactive ? { id } : { id, isActive: true },
       relations: ['category'],
     });
 
@@ -208,7 +208,7 @@ export class ProductsService {
   }
 
   async update(id: string, updateProductDto: UpdateProductDto): Promise<Product> {
-    const product = await this.findOne(id);
+    const product = await this.findOne(id, true);
 
     // SKU is immutable - cannot be changed after creation
     // It's not even in UpdateProductDto anymore
@@ -295,12 +295,12 @@ export class ProductsService {
   }
 
   async remove(id: string): Promise<void> {
-    const product = await this.findOne(id);
+    const product = await this.findOne(id, true);
     await this.productsRepository.remove(product);
   }
 
   async toggleActive(id: string): Promise<Product> {
-    const product = await this.findOne(id);
+    const product = await this.findOne(id, true);
     product.isActive = !product.isActive;
     return this.productsRepository.save(product);
   }
